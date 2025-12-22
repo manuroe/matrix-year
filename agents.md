@@ -1,6 +1,6 @@
 # AGENTS.md
 
-[my] — My Matrix Year.
+[my] — My year, on Matrix.
 
 This document explains the internal architecture, data model, and extension points of **matrix-year (**`my`**)**. It is intended for humans *and* code-generation agents working on the project.
 
