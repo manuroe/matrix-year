@@ -1,4 +1,4 @@
-# [my] My Matrix Year
+# [my] — My year, on Matrix
 
 `matrix-year` (CLI: `my`) generates a **year-in-review** for your Matrix account: activity stats, highlights, and maybe fun insights.
 

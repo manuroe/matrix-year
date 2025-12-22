@@ -1,0 +1,168 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "matrix-year statistics",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "year",
+    "generated_at",
+    "account",
+    "coverage",
+    "summary"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+
+    "year": {
+      "type": "integer",
+      "minimum": 2000
+    },
+
+    "generated_at": {
+      "type": "string",
+      "format": "date"
+    },
+
+    "account": {
+      "type": "object",
+      "required": ["user_id", "rooms_total"],
+      "additionalProperties": false,
+      "properties": {
+        "user_id": { "type": "string" },
+        "display_name": { "type": ["string", "null"] },
+        "avatar_url": { "type": ["string", "null"] },
+        "rooms_total": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "coverage": {
+      "type": "object",
+      "required": ["from", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "type": "string", "format": "date" },
+        "to": { "type": "string", "format": "date" },
+        "days_active": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "summary": {
+      "type": "object",
+      "required": ["messages_sent", "active_rooms"],
+      "additionalProperties": false,
+      "properties": {
+        "messages_sent": { "type": "integer", "minimum": 0 },
+        "active_rooms": { "type": "integer", "minimum": 0 },
+
+        "dm_rooms": { "type": "integer", "minimum": 0 },
+        "public_rooms": { "type": "integer", "minimum": 0 },
+        "private_rooms": { "type": "integer", "minimum": 0 },
+
+        "peak_month": {
+          "type": "object",
+          "required": ["month", "messages"],
+          "additionalProperties": false,
+          "properties": {
+            "month": { "type": "string" },
+            "messages": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+
+    "activity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "by_month": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "by_weekday": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "by_hour": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+
+    "rooms": {
+      "type": "object",
+      "required": ["total"],
+      "additionalProperties": false,
+      "description": "Activity in non-public rooms only (DMs and private rooms). Public rooms are explicitly excluded.",
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "top": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["messages"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": ["string", "null"] },
+              "messages": { "type": "integer", "minimum": 0 },
+              "percentage": { "type": "number", "minimum": 0, "maximum": 100 }
+            }
+          }
+        }
+      }
+    },
+
+    "reactions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "top_emojis": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["emoji", "count"],
+            "additionalProperties": false,
+            "properties": {
+              "emoji": { "type": "string" },
+              "count": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "top_messages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["permalink", "reaction_count"],
+            "additionalProperties": false,
+            "properties": {
+              "permalink": { "type": "string", "format": "uri" },
+              "reaction_count": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+
+    "created_rooms": {
+      "type": "object",
+      "required": ["total"],
+      "additionalProperties": false,
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "dm_rooms": { "type": "integer", "minimum": 0 },
+        "public_rooms": { "type": "integer", "minimum": 0 },
+        "private_rooms": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "fun": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

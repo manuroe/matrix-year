@@ -1,6 +1,6 @@
 # AGENTS.md
 
-[my] — Your year, on Matrix.
+[my] — My year, on Matrix.
 
 This document explains the internal architecture, data model, and extension points of **matrix-year (**`my`**)**. It is intended for humans *and* code-generation agents working on the project.
 
@@ -105,62 +105,89 @@ Account identifiers must be filesystem-safe (e.g. `@alice_example.org`).
 
 ---
 
-### SQLite storage
+### Matrix SDK Storage
 
-Each account has a single SQLite database:
+Raw Matrix data is **managed by the Matrix SDK** (`matrix-rust-sdk`).
+
+The SDK:
+
+- Stores events in its own encrypted database
+- Handles end-to-end encryption automatically
+- Manages sync state and event persistence
+
+Secrets (access tokens, database encryption keys) **must be stored securely** using platform-appropriate facilities:
+
+- **macOS:** Keychain
+- **Linux:** Secret Service API (libsecret) or similar
+- **Windows:** Credential Manager
+
+Agents **must not** store secrets in plaintext or in the stats database.
+
+---
+
+### Stats Cache (SQLite)
+
+Each account has a **separate SQLite database for derived statistics**:
 
 ```text
 accounts/<account>/db.sqlite
 ```
 
-Responsibilities:
+Purpose:
 
-- Store raw events
-- Store crawl state (tokens, cursors)
-- Store derived yearly stats
+- Cache computed yearly statistics
+- Avoid re-parsing all Matrix events on subsequent requests
+- Store metadata (last computation time, data version)
+
+This database **does not** store:
+
+- Raw Matrix events (handled by SDK)
+- Message content
+- Encryption keys or tokens
 
 Render outputs remain **outside** the database.
 
 ---
 
-## 4. Event Store
+## 4. Event Access
 
-### Storage backend
+### Storage model
 
-The event store is implemented on top of **SQLite**.
+Raw Matrix events are **managed entirely by the Matrix SDK**.
 
-Tables are append-only at the logical level, even if SQLite performs updates internally.
+The SDK provides:
 
-### Core tables (conceptual)
+- Encrypted storage of events and room state
+- Automatic sync token management
+- Deduplication of events
+- Query interfaces for accessing historical data
+
+The project **does not** directly manage Matrix event storage.
+
+### Stats cache schema (conceptual)
+
+The project's SQLite database stores **derived statistics only**:
 
 ```sql
-events(
-  event_id TEXT PRIMARY KEY,
-  room_id TEXT,
-  sender TEXT,
-  type TEXT,
-  origin_ts INTEGER,
-  json TEXT
+stats_cache(
+  year INTEGER,
+  account_id TEXT,
+  computed_at INTEGER,
+  stats_json TEXT,
+  PRIMARY KEY (year, account_id)
 )
 
-rooms(
-  room_id TEXT PRIMARY KEY,
-  name TEXT,
-  is_dm BOOLEAN
-)
-
-crawl_state(
-  room_id TEXT PRIMARY KEY,
-  since_token TEXT,
-  last_ts INTEGER
+meta(
+  key TEXT PRIMARY KEY,
+  value TEXT
 )
 ```
 
 ### Guarantees
 
-- Raw event JSON is stored verbatim
-- Events are never modified once inserted
-- Duplicate events must be ignored safely
+- Stats are deterministic for a given event set
+- Stats can be recomputed from SDK data at any time
+- No message content is stored in the stats cache
 
 ---
 
@@ -249,36 +276,50 @@ They must:
 
 ## 8. Configuration
 
-### Config discovery
+### Command-line driven
 
-Config is resolved in the following order:
+All configuration is provided via **command-line arguments**. No configuration files are used.
 
-1. `--config <path>`
-2. `MY_CONFIG` environment variable
-3. `./my.toml`
-4. `~/.config/my/config.toml`
+### Authentication
 
----
-
-### Multi-account config
-
-```toml
-[[account]]
-name = "alice"
-user_id = "@alice:example.org"
-homeserver = "https://matrix.org"
-
-[[account]]
-name = "bob"
-user_id = "@bob:example.com"
-homeserver = "https://example.com"
-```
-
-The active account can be selected via:
+**Login to an account:**
 
 ```bash
-my --account alice crawl
+my login @alice:example.org
 ```
+
+**Logout from an account:**
+
+```bash
+my logout @alice:example.org
+```
+
+This command:
+- Removes stored credentials
+- Removes local data
+
+### Core Commands
+
+**Crawl Matrix data:**
+
+```bash
+my crawl                                    # Crawl all logged-in accounts
+my crawl --user-id @alice:example.org       # Crawl specific account
+my crawl --until 2025-01-01                 # Crawl events with timestamps up to and including this date
+```
+
+**Generate statistics:**
+
+```bash
+my stats 2025                               # Generate stats for all accounts
+my stats 2025 --user-id @alice:example.org  # Generate stats for specific account
+```
+
+### Multi-account support
+
+Accounts are identified by their Matrix user ID and stored in separate directories.
+
+If no account is specified, commands run for **all logged-in accounts** found in the data directory.
 
 ---
 
@@ -332,7 +373,75 @@ When unsure, prefer:
 
 ---
 
-## 11. Non-Goals
+## 11. Git & GitHub Workflow
+
+### Git User Configuration
+
+All git operations **must** use the git user configured on the machine.
+
+Verify user configuration with:
+
+```bash
+git config user.name
+git config user.email
+```
+
+Use these credentials for all commits and git operations.
+
+---
+
+### Pull Request Workflow
+
+When asked to create a pull request, agents **must** follow this sequence. If the changes are logically independent, create several commits to simplify the review process:
+
+#### 1. Document Session Prompts
+
+Create or update `PROMPTS.md` with a new section containing:
+
+- **Section title:** The PR title
+- **Content:** All user prompts from the current session, in chronological order
+- **Format:** Clear separation between prompts, with timestamps if available
+
+#### 2. Update Agent Documentation
+
+Amend `AGENTS.md` with:
+
+- Any architectural insights learned during implementation
+- New constraints or patterns discovered
+- Edge cases or clarifications
+- Updated examples if applicable
+
+Keep changes focused and avoid redundancy.
+
+#### 3. Run Quality Checks
+
+Execute all project linters and tests:
+Ensure all checks pass before proceeding.
+
+#### 4. Request Validation
+
+**Before creating the PR**, present the `PROMPTS.md` additions to the user and ask:
+
+> I've documented the session prompts in PROMPTS.md. Please review the following additions:
+>
+> [show PROMPTS.md section]
+>
+> Should I proceed with creating the pull request?
+
+Wait for explicit confirmation before creating the PR.
+
+#### 5. Create Pull Request
+
+Only after validation:
+
+- Commit all changes with descriptive message
+- Push to feature branch
+- Create PR with appropriate title and description
+- Reference any related issues
+
+---
+
+## 12. Non-Goals
 
 This project intentionally does **not**:
 
@@ -343,7 +452,7 @@ This project intentionally does **not**:
 
 ---
 
-## 12. Attribution
+## 13. Attribution
 
 Matrix is an open standard. This project is not affiliated with matrix.org.
 
