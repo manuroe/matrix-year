@@ -305,7 +305,7 @@ This command:
 ```bash
 my crawl                                    # Crawl all logged-in accounts
 my crawl --user-id @alice:example.org       # Crawl specific account
-my crawl --until 2025-01-01                 # Crawl until specific date
+my crawl --until 2025-01-01                 # Crawl events with timestamps up to and including this date
 ```
 
 **Generate statistics:**
