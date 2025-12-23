@@ -1,9 +1,9 @@
+use anyhow::{Context, Result};
 use clap::Parser;
-use anyhow::{Result, Context};
 use std::path::PathBuf;
 
-mod stats;
 mod renderer;
+mod stats;
 
 #[derive(Parser)]
 #[command(name = "my", disable_help_flag = true)]
@@ -12,11 +12,11 @@ struct Cli {
     /// Render formats (comma-separated: md,html). Renders all if no formats specified.
     #[arg(long)]
     render: Option<String>,
-    
+
     /// Path to JSON stats file (optional, for development; will use DB later)
     #[arg(long)]
     json_stats: Option<PathBuf>,
-    
+
     /// Output directory (defaults to current directory)
     #[arg(short, long)]
     output: Option<PathBuf>,
@@ -48,12 +48,16 @@ fn main() -> Result<()> {
         } else {
             anyhow::bail!("--json-stats is currently required (DB support coming later)");
         };
-        
+
         // Determine output directory
         let output_dir = cli.output.unwrap_or_else(|| PathBuf::from("."));
-        std::fs::create_dir_all(&output_dir)
-            .with_context(|| format!("Failed to create output directory: {}", output_dir.display()))?;
-        
+        std::fs::create_dir_all(&output_dir).with_context(|| {
+            format!(
+                "Failed to create output directory: {}",
+                output_dir.display()
+            )
+        })?;
+
         // Parse formats
         let formats: Vec<&str> = if render_arg.is_empty() {
             // Empty string means render all
@@ -61,7 +65,7 @@ fn main() -> Result<()> {
         } else {
             render_arg.split(',').map(|s| s.trim()).collect()
         };
-        
+
         // Render each format
         for format in formats {
             match format {
@@ -77,7 +81,7 @@ fn main() -> Result<()> {
                 }
             }
         }
-        
+
         Ok(())
     } else {
         eprintln!("No action specified. Use --render to generate reports.");

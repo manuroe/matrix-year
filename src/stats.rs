@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
 use anyhow::{Context, Result};
+use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
-use indexmap::IndexMap;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Stats {
@@ -65,18 +65,18 @@ pub struct PeakMonth {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Activity {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub by_month: Option<HashMap<String, i32>>, 
+    pub by_month: Option<HashMap<String, i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub by_weekday: Option<HashMap<String, i32>>, 
+    pub by_weekday: Option<HashMap<String, i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub by_hour: Option<HashMap<String, i32>>, 
+    pub by_hour: Option<HashMap<String, i32>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Rooms {
     pub total: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub top: Option<Vec<RoomEntry>>, 
+    pub top: Option<Vec<RoomEntry>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -95,9 +95,9 @@ pub struct Reactions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub top_emojis: Option<Vec<EmojiEntry>>, 
+    pub top_emojis: Option<Vec<EmojiEntry>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub top_messages: Option<Vec<MessageReactionEntry>>, 
+    pub top_messages: Option<Vec<MessageReactionEntry>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -133,10 +133,10 @@ impl Stats {
     pub fn load_from_file(path: &Path) -> Result<Self> {
         let content = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read stats file: {}", path.display()))?;
-        
+
         let stats: Stats = serde_json::from_str(&content)
             .with_context(|| format!("Failed to parse JSON from: {}", path.display()))?;
-        
+
         Ok(stats)
     }
 }
