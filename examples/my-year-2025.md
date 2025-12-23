@@ -83,13 +83,13 @@ You made people smile with **1,120** reactions on your messages!
 | 250 | 240 | 290 | 310 | 320 | 340 | 280 | 245 | 420 | 612 | 580 | 199 |
 
 ### 🎪 Fun Facts
+- 📝 **Longest message chars:** 1,024
+- 📅 **Favorite weekday:** Thursday
+- 🕐 **Peak hour:** 21
+- 🔥 **Longest streak days:** 15
+- 😊 You react on every 4 sent messages
 - ✏️ **Edits per message:** 8.0%
 - ⏱️ **Crawl duration seconds:** 2 min 22 sec
-- 😊 You react on every 4 sent messages
-- 🕐 **Peak hour:** 21
-- 📝 **Longest message chars:** 1,024
 - 👀 **Lurking rooms:** 15
 - 🔐 **Encrypted messages:** 68.0%
-- 📅 **Favorite weekday:** Thursday
-- 🔥 **Longest streak days:** 15
 
