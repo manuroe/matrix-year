@@ -204,9 +204,9 @@ fn render_rooms(output: &mut String, rooms: &Rooms, _year: i32) {
         output.push_str("| -- | ------- | ------ |\n");
         output.push_str(&format!(
             "| {} | {} | {} |\n\n",
-            format_number(dist.dm),
-            format_number(dist.private),
-            format_number(dist.public)
+            format_number(dist.dm.unwrap_or(0)),
+            format_number(dist.private.unwrap_or(0)),
+            format_number(dist.public.unwrap_or(0))
         ));
     }
 

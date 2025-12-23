@@ -63,9 +63,12 @@ pub struct Summary {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct MessagesByRoomType {
-    pub dm: i32,
-    pub private: i32,
-    pub public: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dm: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub private: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub public: Option<i32>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
