@@ -411,15 +411,13 @@ fn format_number(n: i32) -> String {
     // Work with absolute value as i64 to safely handle i32::MIN
     let abs_str = (n as i64).abs().to_string();
     let mut grouped_rev = String::new();
-    let mut count: usize = 0;
 
     // Insert commas every three digits, starting from the right
-    for ch in abs_str.chars().rev() {
+    for (count, ch) in abs_str.chars().rev().enumerate() {
         if count > 0 && count.is_multiple_of(3) {
             grouped_rev.push(',');
         }
         grouped_rev.push(ch);
-        count += 1;
     }
 
     // Reverse back to normal order
