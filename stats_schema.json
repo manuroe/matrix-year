@@ -104,7 +104,7 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["messages"],
+             "required": ["messages", "permalink"],
             "additionalProperties": false,
             "properties": {
               "name": { "type": ["string", "null"] },
