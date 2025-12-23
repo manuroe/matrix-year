@@ -267,8 +267,12 @@ fn render_fun(output: &mut String, fun: &Fun) {
     
     output.push_str("### 🎪 Fun Facts\n");
     
-    // Render each field with human-friendly formatting
-    for (key, value) in &fun.fields {
+    // Render each field with human-friendly formatting in a deterministic order
+    let mut keys: Vec<&String> = fun.fields.keys().collect();
+    keys.sort();
+    
+    for key in keys {
+        let value = fun.fields.get(key).expect("fun.fields must contain key from keys vector");
         let formatted_key = key.replace('_', " ");
         let formatted_key = uppercase_first_char(&formatted_key);
         let display_key = if key == "sent_encrypted_messages_ratio" {
@@ -356,18 +360,27 @@ fn render_fun(output: &mut String, fun: &Fun) {
 
 /// Format a number with thousand separators (raw integers, no abbreviation)
 fn format_number(n: i32) -> String {
-    let s = n.to_string();
-    let chars: Vec<char> = s.chars().collect();
-    let mut result = String::new();
+    let is_negative = n < 0;
+    // Work with absolute value as i64 to safely handle i32::MIN
+    let abs_str = (n as i64).abs().to_string();
+    let mut grouped_rev = String::new();
+    let mut count: usize = 0;
     
-    for (i, &c) in chars.iter().enumerate() {
-        if i > 0 && (chars.len() - i).is_multiple_of(3) {
-            result.push(',');
+    // Insert commas every three digits, starting from the right
+    for ch in abs_str.chars().rev() {
+        if count > 0 && count.is_multiple_of(3) {
+            grouped_rev.push(',');
         }
-        result.push(c);
+        grouped_rev.push(ch);
+        count += 1;
     }
     
-    result
+    // Reverse back to normal order
+    let mut formatted: String = grouped_rev.chars().rev().collect();
+    if is_negative {
+        formatted.insert(0, '-');
+    }
+    formatted
 }
 
 /// Uppercase the first character of a string
