@@ -5,6 +5,34 @@ use std::path::PathBuf;
 mod renderer;
 mod stats;
 
+// Help text constants
+const HELP_MAIN: &str = "\
+my — Matrix year-in-review tool
+
+Commands:
+  --render [formats]   Render reports (md,html).
+
+Usage:
+  my --render [formats] --json-stats <path> [--output <dir>]
+
+More help:
+  my --help render";
+
+const HELP_RENDER: &str = "\
+Render reports (md,html)
+
+Usage:
+  my --render [formats] --json-stats <path> [--output <dir>]
+
+Options:
+  --render [formats]   Comma-separated formats (md,html). Empty renders all.
+  --json-stats <path>  Optional stats JSON (required for now; DB later).
+  --output <dir>       Output directory (default: current dir). Filenames are auto-generated.
+
+Examples:
+  my --render md --json-stats examples/example-stats.json --output examples
+  my --render md,html --json-stats examples/example-stats.json --output reports";
+
 #[derive(Parser)]
 #[command(name = "my", disable_help_flag = true)]
 #[command(about = "Matrix year-in-review tool", long_about = None)]
@@ -32,9 +60,9 @@ fn main() -> Result<()> {
     if let Some(help_topic) = cli.help {
         let topic = help_topic.trim();
         if topic.is_empty() {
-            println!("my — Matrix year-in-review tool\n\nCommands:\n  --render [formats]   Render reports (md,html).\n\nUsage:\n  my --render [formats] --json-stats <path> [--output <dir>]\n\nMore help:\n  my --help render");
+            println!("{}", HELP_MAIN);
         } else if topic.eq_ignore_ascii_case("render") {
-            println!("Render reports (md,html)\n\nUsage:\n  my --render [formats] --json-stats <path> [--output <dir>]\n\nOptions:\n  --render [formats]   Comma-separated formats (md,html). Empty renders all.\n  --json-stats <path>  Optional stats JSON (required for now; DB later).\n  --output <dir>       Output directory (default: current dir). Filenames are auto-generated.\n\nExamples:\n  my --render md --json-stats examples/example-stats.json --output examples\n  my --render md,html --json-stats examples/example-stats.json --output reports");
+            println!("{}", HELP_RENDER);
         } else {
             println!("Unknown help topic: {}", topic);
         }
