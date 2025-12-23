@@ -105,6 +105,7 @@ fn render_summary(output: &mut String, summary: &Summary, active_days: Option<i3
         output.push_str(&format!("- 🔒 **Private rooms:** {}\n", private_rooms));
     }
 
+
     if let Some(ref peak_month) = summary.peak_month {
         output.push_str(&format!(
             "- 📈 **Peak month:** {} ({} messages) 🚀\n",
@@ -194,8 +195,20 @@ fn render_activity(output: &mut String, activity: &Activity) {
 }
 
 fn render_rooms(output: &mut String, rooms: &Rooms, _year: i32) {
-    output.push_str("### 🏘️ Rooms (private + DMs)\n");
-    output.push_str(&format!("Total non-public rooms: **{}**\n\n", rooms.total));
+    output.push_str("### 🏘️ Rooms\n");
+    output.push_str(&format!("You sent messages in **{}** rooms\n\n", rooms.total));
+
+    if let Some(ref dist) = rooms.messages_by_room_type {
+        output.push_str("**Messages by room type**\n\n");
+        output.push_str("| DM | Private | Public |\n");
+        output.push_str("| -- | ------- | ------ |\n");
+        output.push_str(&format!(
+            "| {} | {} | {} |\n\n",
+            format_number(dist.dm),
+            format_number(dist.private),
+            format_number(dist.public)
+        ));
+    }
 
     if let Some(ref top) = rooms.top {
         if !top.is_empty() {
@@ -212,12 +225,8 @@ fn render_rooms(output: &mut String, rooms: &Rooms, _year: i32) {
                     String::from("-")
                 };
 
-                // Create clickable room name if permalink is available
-                let name_display = if let Some(ref permalink) = room.permalink {
-                    format!("[{}]({})", name, permalink)
-                } else {
-                    name.to_string()
-                };
+                // Clickable room name with permalink
+                let name_display = format!("[{}]({})", name, room.permalink);
 
                 output.push_str(&format!(
                     "| {} | {} | {} | {} |\n",

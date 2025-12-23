@@ -145,6 +145,7 @@ Rules:
   - May be omitted by renderers in non-`full` modes
 - Room counts must be consistent with `rooms.total`
 
+
 ---
 
 
@@ -184,9 +185,25 @@ Rules:
 
 ### 5. Rooms
 
-Ranks **non-public rooms** by activity.
+Ranks rooms by activity.
 
-This section explicitly **excludes public rooms** to limit crawl scope and cost.
+Public rooms are **included**. Crawl and computation only consider **messages sent by the account**, so cost and privacy remain bounded.
+
+Additional distribution (recommended):
+
+```json
+"messages_by_room_type": {
+  "dm": 1620,
+  "private": 2310,
+  "public": 902
+}
+```
+
+Rules:
+- Counts represent **messages sent by the account** during the year
+- Keys: `dm`, `private`, `public` (integers ≥ 0)
+- Sum must equal `summary.messages_sent`
+- Renderers may omit this in non-`full` modes
 
 ```json
 "rooms": {
@@ -202,9 +219,8 @@ This section explicitly **excludes public rooms** to limit crawl scope and cost.
 ```
 
 Rules:
-- Only **private rooms and DMs** are included
-- Public rooms **must not** be crawled for this section
-- Sorted descending by `messages`
+- Includes **DM**, **private**, and **public** rooms
+- Sorted descending by `messages` (sent by the account)
 - Limited to top N (default: 5)
 - Room names may be omitted for privacy
 

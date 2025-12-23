@@ -16,8 +16,14 @@
 
 *All sections below refer to year 2025.*
 
-### 🏘️ Rooms (private + DMs)
-Total non-public rooms: **12**
+### 🏘️ Rooms
+You sent messages in **12** rooms
+
+**Messages by room type**
+
+| DM | Private | Public |
+| -- | ------- | ------ |
+| 1,620 | 2,310 | 902 |
 
 Your most active rooms:
 
