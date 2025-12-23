@@ -8,3 +8,12 @@
 - Remove TOML config; require all data via CLI; default to all accounts when unspecified.
 - Add dedicated login/logout commands; keep crawl/stats commands; add --until date option for crawl.
 - Emphasize creating several commits when changes are independent; request to create a PR.
+
+## PR: CLI render flag, help, docs and examples refresh
+
+- Add matrix.to links for user IDs in Account section.
+- Keep title plain (no permalink) and render encrypted ratio in fun facts; rename label to "Encrypted messages".
+- Add Summary year note; reorder sections: Account, Summary, Rooms, Created rooms, Reactions, Activity, Fun.
+- Merge header and account details; format created rooms with emojis aligned like Summary.
+- Introduce --render flag with optional formats, directory --output, optional --json-stats; add two-level --help (global and render topic).
+- Simplify CLI docs, add CLI.md; update agents.md for new render usage and PR QA steps; regenerate examples.
