@@ -60,7 +60,7 @@ fn render_header(output: &mut String, stats: &Stats) {
         output.push_str(&format!("- **Avatar (MXC):** {}\n", avatar));
     }
     output.push_str(&format!("- **Total joined rooms:** {}\n", account.rooms_total));
-    output.push_str("\n");
+    output.push('\n');
 }
 
 // Coverage section intentionally removed from rendering; active days are shown in Summary.
@@ -167,7 +167,7 @@ fn render_activity(output: &mut String, activity: &Activity) {
     }
 }
 
-fn render_rooms(output: &mut String, rooms: &Rooms, year: i32) {
+fn render_rooms(output: &mut String, rooms: &Rooms, _year: i32) {
     output.push_str("### 🏘️ Rooms (private + DMs)\n");
     output.push_str(&format!("Total non-public rooms: **{}**\n\n", rooms.total));
     
@@ -361,7 +361,7 @@ fn format_number(n: i32) -> String {
     let mut result = String::new();
     
     for (i, &c) in chars.iter().enumerate() {
-        if i > 0 && (chars.len() - i) % 3 == 0 {
+        if i > 0 && (chars.len() - i).is_multiple_of(3) {
             result.push(',');
         }
         result.push(c);
