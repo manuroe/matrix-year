@@ -315,6 +315,16 @@ my stats 2025                               # Generate stats for all accounts
 my stats 2025 --user-id @alice:example.org  # Generate stats for specific account
 ```
 
+**Render reports:**
+
+```bash
+my --render md --json-stats <path>                      # Render Markdown to current directory
+my --render md --json-stats <path> --output <dir>       # Render Markdown to specific directory
+my --render md,html --json-stats <path> --output <dir>  # Render multiple formats
+```
+
+Output filenames are generated automatically (e.g., `my-year-2025.md`). The `--json-stats` flag is currently required for development; future versions will read from the database.
+
 ### Multi-account support
 
 Accounts are identified by their Matrix user ID and stored in separate directories.
@@ -394,7 +404,20 @@ Use these credentials for all commits and git operations.
 
 When asked to create a pull request, agents **must** follow this sequence. If the changes are logically independent, create several commits to simplify the review process:
 
-#### 1. Document Session Prompts
+#### 1. Quality Assurance
+
+Before proceeding, verify **consistency across three dimensions**:
+
+- **Code:** Implementation correctly reflects the intended behavior
+- **Docs:** CLI.md and agents.md document all user-facing changes
+- **Examples:** Run all examples to ensure generated output is current and valid
+
+Rebuild all examples and validate output:
+```bash
+cargo run -- --render md --json-stats examples/example-stats.json --output examples
+```
+
+#### 2. Document Session Prompts
 
 Create or update `PROMPTS.md` with a new section containing:
 
@@ -402,7 +425,7 @@ Create or update `PROMPTS.md` with a new section containing:
 - **Content:** All user prompts from the current session, in chronological order
 - **Format:** Clear separation between prompts, with timestamps if available
 
-#### 2. Update Agent Documentation
+#### 3. Update Agent Documentation
 
 Amend `AGENTS.md` with:
 
@@ -413,12 +436,12 @@ Amend `AGENTS.md` with:
 
 Keep changes focused and avoid redundancy.
 
-#### 3. Run Quality Checks
+#### 4. Run Quality Checks
 
 Execute all project linters and tests:
 Ensure all checks pass before proceeding.
 
-#### 4. Request Validation
+#### 5. Request Validation
 
 **Before creating the PR**, present the `PROMPTS.md` additions to the user and ask:
 
@@ -430,7 +453,7 @@ Ensure all checks pass before proceeding.
 
 Wait for explicit confirmation before creating the PR.
 
-#### 5. Create Pull Request
+#### 6. Create Pull Request
 
 Only after validation:
 
