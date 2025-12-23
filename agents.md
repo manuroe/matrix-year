@@ -226,6 +226,8 @@ Convert raw events into **year-scoped derived statistics**.
 - Stats **must not store message content**
 - Stats **must not reference Matrix IDs unless needed**
 - Stats **should be forward-compatible**
+- Rooms ranking includes **DM**, **private**, and **public** rooms, counting only messages **sent by the account**; top room entries must carry a permalink.
+- Optional distribution `messages_by_room_type` (dm/private/public) may be emitted for the Rooms section; renderers may omit it in non-`full` modes.
 
 ---
 

@@ -62,6 +62,8 @@
         "public_rooms": { "type": "integer", "minimum": 0 },
         "private_rooms": { "type": "integer", "minimum": 0 },
 
+        
+
         "peak_month": {
           "type": "object",
           "required": ["month", "messages"],
@@ -97,9 +99,18 @@
       "type": "object",
       "required": ["total"],
       "additionalProperties": false,
-      "description": "Activity in non-public rooms only (DMs and private rooms). Public rooms are explicitly excluded.",
+      "description": "Activity in joined rooms (DMs, private rooms, and public rooms).",
       "properties": {
         "total": { "type": "integer", "minimum": 0 },
+        "messages_by_room_type": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dm": { "type": "integer", "minimum": 0 },
+            "private": { "type": "integer", "minimum": 0 },
+            "public": { "type": "integer", "minimum": 0 }
+          }
+        },
         "top": {
           "type": "array",
           "items": {

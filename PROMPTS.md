@@ -23,3 +23,11 @@
 - can we have a linter for example-stats.json using stats_schema.json?
 - Start implementation
 - pr it
+
+## PR: Include public rooms and room-type distribution
+
+- I actually want to consider public rooms. The crawling cost will be the same as we will only fetch messages sent by our user. Update the docs and the data about it. We should have now an info in the stats report about the repartition of sent messages between DMs, private rooms and public rooms.
+- Start implementation
+- This stats should be under the rooms section. Also, call the Rooms section just Rooms and add intro text saying: "You sent messages in X rooms"
+- align the RoomEntry.permalink requirement with the Rust struct (optional), or leave as-is for now? The permalink is not optional
+- PR it

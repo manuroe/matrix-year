@@ -62,6 +62,16 @@ pub struct Summary {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct MessagesByRoomType {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dm: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub private: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub public: Option<i32>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct PeakMonth {
     pub month: String,
     pub messages: i32,
@@ -82,6 +92,8 @@ pub struct Rooms {
     pub total: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top: Option<Vec<RoomEntry>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub messages_by_room_type: Option<MessagesByRoomType>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -91,8 +103,7 @@ pub struct RoomEntry {
     pub messages: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub percentage: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub permalink: Option<String>,
+    pub permalink: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

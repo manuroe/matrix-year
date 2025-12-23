@@ -77,6 +77,11 @@
   },
   "rooms": {
     "total": 12,
+    "messages_by_room_type": {
+      "dm": 1620,
+      "private": 2310,
+      "public": 902
+    },
     "top": [
       {
         "name": "Friends",
