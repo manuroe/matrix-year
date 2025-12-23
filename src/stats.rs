@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::path::Path;
+use indexmap::IndexMap;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Stats {
@@ -64,18 +65,18 @@ pub struct PeakMonth {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Activity {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub by_month: Option<HashMap<String, i32>>,
+    pub by_month: Option<HashMap<String, i32>>, 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub by_weekday: Option<HashMap<String, i32>>,
+    pub by_weekday: Option<HashMap<String, i32>>, 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub by_hour: Option<HashMap<String, i32>>,
+    pub by_hour: Option<HashMap<String, i32>>, 
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Rooms {
     pub total: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub top: Option<Vec<RoomEntry>>,
+    pub top: Option<Vec<RoomEntry>>, 
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -94,9 +95,9 @@ pub struct Reactions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub top_emojis: Option<Vec<EmojiEntry>>,
+    pub top_emojis: Option<Vec<EmojiEntry>>, 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub top_messages: Option<Vec<MessageReactionEntry>>,
+    pub top_messages: Option<Vec<MessageReactionEntry>>, 
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -125,7 +126,7 @@ pub struct CreatedRooms {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Fun {
     #[serde(flatten)]
-    pub fields: HashMap<String, serde_json::Value>,
+    pub fields: IndexMap<String, serde_json::Value>,
 }
 
 impl Stats {

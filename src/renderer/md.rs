@@ -267,12 +267,8 @@ fn render_fun(output: &mut String, fun: &Fun) {
     
     output.push_str("### 🎪 Fun Facts\n");
     
-    // Render each field with human-friendly formatting in a deterministic order
-    let mut keys: Vec<&String> = fun.fields.keys().collect();
-    keys.sort();
-    
-    for key in keys {
-        let value = fun.fields.get(key).expect("fun.fields must contain key from keys vector");
+    // Render each field with human-friendly formatting using insertion order from IndexMap
+    for (key, value) in &fun.fields {
         let formatted_key = key.replace('_', " ");
         let formatted_key = uppercase_first_char(&formatted_key);
         let display_key = if key == "sent_encrypted_messages_ratio" {
