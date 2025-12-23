@@ -104,12 +104,13 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["messages"],
+             "required": ["messages", "permalink"],
             "additionalProperties": false,
             "properties": {
               "name": { "type": ["string", "null"] },
               "messages": { "type": "integer", "minimum": 0 },
-              "percentage": { "type": "number", "minimum": 0, "maximum": 100 }
+              "percentage": { "type": "number", "minimum": 0, "maximum": 100 },
+              "permalink": { "type": "string", "format": "uri" }
             }
           }
         }

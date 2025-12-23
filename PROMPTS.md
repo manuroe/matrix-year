@@ -17,3 +17,9 @@
 - Merge header and account details; format created rooms with emojis aligned like Summary.
 - Introduce --render flag with optional formats, directory --output, optional --json-stats; add two-level --help (global and render topic).
 - Simplify CLI docs, add CLI.md; update agents.md for new render usage and PR QA steps; regenerate examples.
+
+## PR: JSON Schema validation for example stats
+
+- can we have a linter for example-stats.json using stats_schema.json?
+- Start implementation
+- pr it
