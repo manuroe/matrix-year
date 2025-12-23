@@ -39,3 +39,15 @@ jobs:
           components: rustfmt
       - name: Check formatting
         run: cargo fmt --all -- --check
+
+  validate-examples:
+    name: Validate Example Stats
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Validate example stats against schema
+        run: |
+          # The validation tests will fail if example-stats.json doesn't match the schema
+          cargo test --all-features stats::tests::test_validate_example_stats -- --nocapture
