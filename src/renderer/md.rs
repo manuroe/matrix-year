@@ -18,7 +18,12 @@ pub fn render(stats: &Stats) -> Result<String> {
 
     // 3. Rooms
     if let Some(ref rooms) = stats.rooms {
-        render_rooms(&mut output, rooms, stats.summary.messages_sent, &stats.scope);
+        render_rooms(
+            &mut output,
+            rooms,
+            stats.summary.messages_sent,
+            &stats.scope,
+        );
     }
 
     // 4. Created rooms
@@ -50,10 +55,7 @@ fn render_header(output: &mut String, stats: &Stats) {
 
     // Title with display name if available
     if let Some(ref display_name) = account.display_name {
-        output.push_str(&format!(
-            "# 🎉 Matrix {} — {}\n",
-            scope_label, display_name
-        ));
+        output.push_str(&format!("# 🎉 Matrix {} — {}\n", scope_label, display_name));
     } else {
         output.push_str(&format!("# 🎉 Matrix {}\n", scope_label));
     }
@@ -193,9 +195,13 @@ fn render_activity(output: &mut String, activity: &Activity, scope: &Scope) {
     if matches!(scope.kind, ScopeKind::Month | ScopeKind::Week) {
         if let Some(ref by_day) = activity.by_day {
             output.push_str("#### 📅 By day\n");
-            output.push_str("| 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 | 09 | 10 | 11 | 12 | 13 | 14 | 15 |");
+            output.push_str(
+                "| 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 | 09 | 10 | 11 | 12 | 13 | 14 | 15 |",
+            );
             output.push('\n');
-            output.push_str("| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |");
+            output.push_str(
+                "| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |",
+            );
             output.push('\n');
             output.push('|');
             for day in 1..=15 {
@@ -206,9 +212,13 @@ fn render_activity(output: &mut String, activity: &Activity, scope: &Scope) {
             output.push('\n');
 
             output.push('\n');
-            output.push_str("| 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 |");
+            output.push_str(
+                "| 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 |",
+            );
             output.push('\n');
-            output.push_str("| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |");
+            output.push_str(
+                "| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |",
+            );
             output.push('\n');
             output.push('|');
             for day in 16..=31 {
@@ -475,33 +485,33 @@ fn render_fun(output: &mut String, fun: &Fun) {
     output.push('\n');
 }
 
-    fn scope_label(scope: &Scope) -> String {
-        if let Some(label) = &scope.label {
-            return label.clone();
-        }
-
-        match scope.kind {
-            ScopeKind::Year => format!("Year {}", scope.key),
-            ScopeKind::Month => format!("Month {}", scope.key),
-            ScopeKind::Week => format!("Week {}", scope.key),
-            ScopeKind::Day => format!("Day {}", scope.key),
-            ScopeKind::Life => "Life-to-date".to_string(),
-        }
+fn scope_label(scope: &Scope) -> String {
+    if let Some(label) = &scope.label {
+        return label.clone();
     }
 
-    fn scope_phrase(scope: &Scope) -> String {
-        if let Some(label) = &scope.label {
-            return label.clone();
-        }
-
-        match scope.kind {
-            ScopeKind::Year => format!("the year {}", scope.key),
-            ScopeKind::Month => format!("the month {}", scope.key),
-            ScopeKind::Week => format!("the week {}", scope.key),
-            ScopeKind::Day => format!("the day {}", scope.key),
-            ScopeKind::Life => "your life on Matrix so far".to_string(),
-        }
+    match scope.kind {
+        ScopeKind::Year => format!("Year {}", scope.key),
+        ScopeKind::Month => format!("Month {}", scope.key),
+        ScopeKind::Week => format!("Week {}", scope.key),
+        ScopeKind::Day => format!("Day {}", scope.key),
+        ScopeKind::Life => "Life-to-date".to_string(),
     }
+}
+
+fn scope_phrase(scope: &Scope) -> String {
+    if let Some(label) = &scope.label {
+        return label.clone();
+    }
+
+    match scope.kind {
+        ScopeKind::Year => format!("the year {}", scope.key),
+        ScopeKind::Month => format!("the month {}", scope.key),
+        ScopeKind::Week => format!("the week {}", scope.key),
+        ScopeKind::Day => format!("the day {}", scope.key),
+        ScopeKind::Life => "your life on Matrix so far".to_string(),
+    }
+}
 
 /// Format a number with thousand separators (raw integers, no abbreviation)
 fn format_number(n: i32) -> String {

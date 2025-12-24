@@ -307,9 +307,15 @@ mod tests {
         });
 
         let result = Stats::validate_with_schema(&invalid_stats, &schema);
-        assert!(result.is_err(), "Should fail validation for missing 'scope'");
+        assert!(
+            result.is_err(),
+            "Should fail validation for missing 'scope'"
+        );
         let err_msg = format!("{:?}", result.err().unwrap());
-        assert!(err_msg.contains("scope"), "Error should mention missing field");
+        assert!(
+            err_msg.contains("scope"),
+            "Error should mention missing field"
+        );
     }
 
     #[test]
@@ -469,6 +475,9 @@ mod tests {
         });
 
         let result = Stats::validate_with_schema(&invalid_stats, &schema);
-        assert!(result.is_err(), "Should fail validation for invalid scope type");
+        assert!(
+            result.is_err(),
+            "Should fail validation for invalid scope type"
+        );
     }
 }
