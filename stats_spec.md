@@ -54,13 +54,22 @@ Renderers **must not** attempt to reconstruct raw activity.
 
 ## 3. Temporal Scope
 
-Statistics are computed **per account, per calendar year**.
+Statistics are computed **per account** for a specific **time window**.
+
+- Supported scopes: `year`, `month`, `week`, `day`, `life` (since account creation)
+- Scope is expressed via `scope.type` and `scope.key`
+  - `year`: `scope.key = "2025"`
+  - `month`: `scope.key = "2025-03"` (YYYY-MM)
+  - `week`: `scope.key = "2025-W12"` (ISO week)
+  - `day`: `scope.key = "2025-03-15"` (YYYY-MM-DD)
+  - `life`: `scope.key = "life"`
+- `scope.label` may be provided for rendering; otherwise renderers derive a friendly label from `type` and `key`.
 
 Rules:
 
-- Year is determined by `origin_server_ts`
-- Partial years are allowed
-- Missing data must be represented explicitly
+- Coverage (`coverage.from` / `coverage.to`) must match the window when applicable
+- Partial coverage is allowed but must be explicit via coverage dates
+- Renderers must not assume yearly context; they must use `scope`
 
 ---
 
@@ -143,6 +152,7 @@ Rules:
 - Extended fields:
   - Must be present in stats if computable
   - May be omitted by renderers in non-`full` modes
+- `peak_month` applies to `year` and `life` scopes; omit for smaller windows
 - Room counts must be consistent with `rooms.total`
 
 
@@ -155,31 +165,23 @@ Describes activity over time.
 
 ```json
 "activity": {
-  "by_month": {
-    "01": 320,
-    "02": 410,
-    "03": 380
-  },
-  "by_weekday": {
-    "Mon": 620,
-    "Tue": 700,
-    "Wed": 690,
-    "Thu": 810,
-    "Fri": 650,
-    "Sat": 400,
-    "Sun": 362
-  },
-  "by_hour": {
-    "00": 42,
-    "21": 612,
-    "22": 580
-  }
+  "by_year": { "2023": 1200, "2024": 3600 },
+  "by_month": { "01": 320, "02": 410, "03": 380 },
+  "by_week": { "2025-W12": 210, "2025-W13": 180 },
+  "by_weekday": { "Mon": 620, "Tue": 700, "Wed": 690, "Thu": 810, "Fri": 650, "Sat": 400, "Sun": 362 },
+  "by_day": { "01": 42, "02": 68 },
+  "by_hour": { "00": 42, "21": 612, "22": 580 }
 }
 ```
 
 Rules:
 - Missing buckets must be omitted or zeroed
 - Hours are 00–23, local to the user
+- Renderers should pick the buckets that best fit the scope:
+  - `year` / `life`: favor `by_month`, `by_year`, `by_weekday`, `by_hour`
+  - `month`: favor `by_day`, `by_weekday`, `by_hour`
+  - `week`: favor `by_weekday`, `by_hour`
+  - `day`: favor `by_hour`
 
 ---
 
@@ -318,9 +320,19 @@ Rules:
 
 ## 5. Extensibility
 
-- New fields must be added in a backwards-compatible way
-- `schema_version` must be incremented for breaking changes
-- Renderers must ignore unknown fields
+- `schema_version` must be incremented for any schema changes
+- **No backward compatibility guarantee:** stats JSON and renderers are regenerated on each change
+- New fields may be added or modified without compatibility concerns
+- Renderers must ignore unknown fields for forward compatibility
+
+## 5. Extensibility
+
+- `schema_version` must be incremented for any schema changes
+- **No backward compatibility guarantee:** stats JSON and renderers are regenerated on each change
+- New fields may be added or modified without compatibility concerns
+- Renderers must ignore unknown fields for forward compatibility
+
+---
 
 ---
 

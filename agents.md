@@ -170,11 +170,12 @@ The project's SQLite database stores **derived statistics only**:
 
 ```sql
 stats_cache(
-  year INTEGER,
+  scope_type TEXT,
+  scope_key TEXT,
   account_id TEXT,
   computed_at INTEGER,
   stats_json TEXT,
-  PRIMARY KEY (year, account_id)
+  PRIMARY KEY (scope_type, scope_key, account_id)
 )
 
 meta(
@@ -195,7 +196,7 @@ meta(
 
 ### Purpose
 
-Convert raw events into **year-scoped derived statistics**.
+Convert raw events into **scope-aware derived statistics** (year, month, week, day, life).
 
 ### Properties
 

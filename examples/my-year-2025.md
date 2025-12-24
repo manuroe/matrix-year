@@ -14,16 +14,10 @@
 - 🔒 **Private rooms:** 3
 - 📈 **Peak month:** October (512 messages) 🚀
 
-*All sections below refer to year 2025.*
+*All sections below refer to the year 2025.*
 
 ### 🏘️ Rooms
-You sent messages in **12** rooms
-
-**Messages by room type**
-
-| DM | Private | Public |
-| -- | ------- | ------ |
-| 1,620 | 2,310 | 902 |
+You sent 4,832 messages in **12** rooms.
 
 Your most active rooms:
 

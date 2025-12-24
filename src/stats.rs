@@ -12,7 +12,7 @@ use jsonschema::{Draft, JSONSchema};
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Stats {
     pub schema_version: i32,
-    pub year: i32,
+    pub scope: Scope,
     pub generated_at: String,
     pub account: Account,
     pub coverage: Coverage,
@@ -27,6 +27,25 @@ pub struct Stats {
     pub created_rooms: Option<CreatedRooms>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fun: Option<Fun>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ScopeKind {
+    Year,
+    Month,
+    Week,
+    Day,
+    Life,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Scope {
+    #[serde(rename = "type")]
+    pub kind: ScopeKind,
+    pub key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -82,9 +101,15 @@ pub struct Activity {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub by_month: Option<HashMap<String, i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub by_week: Option<HashMap<String, i32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub by_weekday: Option<HashMap<String, i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub by_hour: Option<HashMap<String, i32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub by_day: Option<HashMap<String, i32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub by_year: Option<HashMap<String, i32>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -254,7 +279,8 @@ mod tests {
         // Verify the loaded stats
         let stats = result.unwrap();
         assert_eq!(stats.schema_version, 1);
-        assert_eq!(stats.year, 2025);
+        assert_eq!(stats.scope.kind, ScopeKind::Year);
+        assert_eq!(stats.scope.key, "2025");
     }
 
     #[test]
@@ -262,7 +288,7 @@ mod tests {
         let schema_path = get_schema_path();
         let schema = Stats::load_schema(&schema_path).expect("Failed to load schema");
 
-        // Missing 'year' field
+        // Missing 'scope' field
         let invalid_stats = json!({
             "schema_version": 1,
             "generated_at": "2025-12-31",
@@ -281,12 +307,9 @@ mod tests {
         });
 
         let result = Stats::validate_with_schema(&invalid_stats, &schema);
-        assert!(result.is_err(), "Should fail validation for missing 'year'");
+        assert!(result.is_err(), "Should fail validation for missing 'scope'");
         let err_msg = format!("{:?}", result.err().unwrap());
-        assert!(
-            err_msg.contains("year"),
-            "Error should mention missing field"
-        );
+        assert!(err_msg.contains("scope"), "Error should mention missing field");
     }
 
     #[test]
@@ -297,7 +320,7 @@ mod tests {
         // Invalid date format
         let invalid_stats = json!({
             "schema_version": 1,
-            "year": 2025,
+            "scope": {"type": "year", "key": "2025"},
             "generated_at": "not-a-date",
             "account": {
                 "user_id": "@test:example.org",
@@ -328,7 +351,7 @@ mod tests {
         // Negative messages_sent
         let invalid_stats = json!({
             "schema_version": 1,
-            "year": 2025,
+            "scope": {"type": "year", "key": "2025"},
             "generated_at": "2025-12-31",
             "account": {
                 "user_id": "@test:example.org",
@@ -356,7 +379,7 @@ mod tests {
         // Extra field in account object
         let invalid_stats = json!({
             "schema_version": 1,
-            "year": 2025,
+            "scope": {"type": "year", "key": "2025"},
             "generated_at": "2025-12-31",
             "account": {
                 "user_id": "@test:example.org",
@@ -388,7 +411,7 @@ mod tests {
         // Percentage > 100
         let invalid_stats = json!({
             "schema_version": 1,
-            "year": 2025,
+            "scope": {"type": "year", "key": "2025"},
             "generated_at": "2025-12-31",
             "account": {
                 "user_id": "@test:example.org",
@@ -407,7 +430,8 @@ mod tests {
                 "top": [
                     {
                         "messages": 50,
-                        "percentage": 150.0
+                        "percentage": 150.0,
+                        "permalink": "https://matrix.to/#/!room:test/$evt"
                     }
                 ]
             }
@@ -421,22 +445,22 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_year_minimum() {
+    fn test_validate_scope_types() {
         let schema_path = get_schema_path();
         let schema = Stats::load_schema(&schema_path).expect("Failed to load schema");
 
-        // Year < 2000
+        // Invalid scope type
         let invalid_stats = json!({
             "schema_version": 1,
-            "year": 1999,
-            "generated_at": "1999-12-31",
+            "scope": {"type": "invalid", "key": "2025"},
+            "generated_at": "2025-12-31",
             "account": {
                 "user_id": "@test:example.org",
                 "rooms_total": 10
             },
             "coverage": {
-                "from": "1999-01-01",
-                "to": "1999-12-31"
+                "from": "2025-01-01",
+                "to": "2025-12-31"
             },
             "summary": {
                 "messages_sent": 100,
@@ -445,6 +469,6 @@ mod tests {
         });
 
         let result = Stats::validate_with_schema(&invalid_stats, &schema);
-        assert!(result.is_err(), "Should fail validation for year < 2000");
+        assert!(result.is_err(), "Should fail validation for invalid scope type");
     }
 }

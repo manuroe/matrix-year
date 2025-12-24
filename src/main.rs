@@ -7,16 +7,16 @@ mod stats;
 
 // Help text constants
 const HELP_MAIN: &str = "\
-my — Matrix year-in-review tool
+my — Matrix recap tool (year, month, week, day, life)
 
 Commands:
-  --render [formats]   Render reports (md,html).
+    --render [formats]   Render reports (md,html).
 
 Usage:
-  my --render [formats] --json-stats <path> [--output <dir>]
+    my --render [formats] --json-stats <path> [--output <dir>]
 
 More help:
-  my --help render";
+    my --help render";
 
 const HELP_RENDER: &str = "\
 Render reports (md,html)
@@ -25,9 +25,9 @@ Usage:
   my --render [formats] --json-stats <path> [--output <dir>]
 
 Options:
-  --render [formats]   Comma-separated formats (md,html). Empty renders all.
-  --json-stats <path>  Optional stats JSON (required for now; DB later).
-  --output <dir>       Output directory (default: current dir). Filenames are auto-generated.
+    --render [formats]   Comma-separated formats (md,html). Empty renders all.
+    --json-stats <path>  Optional stats JSON (required for now; DB later). Must include scope: year, month, week, day, or life.
+    --output <dir>       Output directory (default: current dir). Filenames are auto-generated based on scope.
 
 Examples:
   my --render md --json-stats examples/example-stats.json --output examples
@@ -99,7 +99,7 @@ fn main() -> Result<()> {
             match format {
                 "md" => {
                     let markdown = renderer::md::render(&stats)?;
-                    let filename = format!("my-year-{}.md", stats.year);
+                    let filename = default_md_filename(&stats);
                     let output_path = output_dir.join(filename);
                     std::fs::write(&output_path, markdown)?;
                     eprintln!("Markdown report written to: {}", output_path.display());
@@ -115,5 +115,15 @@ fn main() -> Result<()> {
         eprintln!("No action specified. Use --render to generate reports.");
         eprintln!("Example: my --render md --json-stats stats.json");
         Ok(())
+    }
+}
+
+fn default_md_filename(stats: &stats::Stats) -> String {
+    match stats.scope.kind {
+        stats::ScopeKind::Year => format!("my-year-{}.md", stats.scope.key),
+        stats::ScopeKind::Month => format!("my-month-{}.md", stats.scope.key),
+        stats::ScopeKind::Week => format!("my-week-{}.md", stats.scope.key),
+        stats::ScopeKind::Day => format!("my-day-{}.md", stats.scope.key),
+        stats::ScopeKind::Life => "my-life.md".to_string(),
     }
 }

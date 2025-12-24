@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "scope": { "type": "month", "key": "2025-03" },
+  "generated_at": "2025-04-02",
+  "account": {
+    "user_id": "@alice:example.org",
+    "display_name": "Alice",
+    "avatar_url": "mxc://example.org/abcdef123456",
+    "rooms_total": 27
+  },
+  "coverage": {
+    "from": "2025-03-01",
+    "to": "2025-03-31",
+    "days_active": 22
+  },
+  "summary": {
+    "messages_sent": 620,
+    "active_rooms": 6,
+    "dm_rooms": 3,
+    "public_rooms": 2,
+    "private_rooms": 1
+  },
+  "activity": {
+    "by_day": {
+      "01": 12, "02": 8, "03": 15, "04": 6, "05": 20, "06": 22, "07": 10,
+      "08": 18, "09": 24, "10": 28, "11": 12, "12": 20, "13": 26, "14": 30, "15": 24,
+      "16": 18, "17": 12, "18": 20, "19": 22, "20": 28, "21": 30, "22": 14, "23": 8,
+      "24": 12, "25": 16, "26": 20, "27": 18, "28": 10, "29": 6, "30": 4, "31": 2
+    },
+    "by_weekday": {
+      "Mon": 92,
+      "Tue": 110,
+      "Wed": 98,
+      "Thu": 126,
+      "Fri": 104,
+      "Sat": 52,
+      "Sun": 38
+    },
+    "by_hour": {
+      "07": 12, "08": 28, "09": 40, "10": 44, "11": 38, "12": 32,
+      "18": 52, "19": 60, "20": 70, "21": 74, "22": 50
+    }
+  },
+  "rooms": {
+    "total": 6,
+    "messages_by_room_type": { "dm": 240, "private": 220, "public": 160 },
+    "top": [
+      { "name": "Friends", "messages": 180, "percentage": 29.0, "permalink": "https://matrix.to/#/!abc123:example.org" },
+      { "name": "Project X", "messages": 150, "percentage": 24.1, "permalink": "https://matrix.to/#/!jkl012:example.org" },
+      { "name": "Family", "messages": 120, "percentage": 19.3, "permalink": "https://matrix.to/#/!ghi789:example.org" }
+    ]
+  },
+  "reactions": {
+    "total": 140,
+    "top_emojis": [
+      { "emoji": "👍", "count": 32 },
+      { "emoji": "😂", "count": 28 },
+      { "emoji": "❤️", "count": 20 }
+    ],
+    "top_messages": [
+      { "permalink": "https://matrix.to/#/!abc:example.org/$event100", "reaction_count": 12 }
+    ]
+  },
+  "created_rooms": {
+    "total": 1,
+    "public_rooms": 1,
+    "dm_rooms": 0,
+    "private_rooms": 0
+  },
+  "fun": {
+    "longest_message_chars": 840,
+    "favorite_weekday": "Thursday",
+    "peak_hour": "21",
+    "longest_streak_days": 6,
+    "reactions_per_message": 0.23,
+    "edits_per_message": 0.06,
+    "crawl_duration_seconds": 28,
+    "lurking_rooms": 21,
+    "sent_encrypted_messages_ratio": 0.65
+  }
+}

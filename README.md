@@ -19,6 +19,8 @@ Examples of stats:
 - Rooms you created during the year
 - Fun stats and habits
 
+> **Note:** `my` also supports monthly, weekly, daily, and life-to-date reports. See [examples/](examples/) for sample outputs.
+
 ## 🚀 CLI usage
 
 ### Crawl your data (incremental & resumable)
