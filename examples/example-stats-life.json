@@ -19,9 +19,12 @@
     "dm_rooms": 10,
     "public_rooms": 7,
     "private_rooms": 7,
-    "peak_month": {
-      "month": "October 2022",
-      "messages": 1920
+    "peaks": {
+      "year": { "year": "2022", "messages": 5200 },
+      "month": { "month": "October 2022", "messages": 2560 },
+      "week": { "week": "2022-W42", "messages": 680 },
+      "day": { "day": "2022-10-18", "messages": 156 },
+      "hour": { "hour": "21", "messages": 72, "date": "2022-10-18" }
     }
   },
   "activity": {
