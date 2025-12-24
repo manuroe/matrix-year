@@ -13,12 +13,17 @@ pub fn render(stats: &Stats) -> Result<String> {
         &mut output,
         &stats.summary,
         stats.coverage.days_active,
-        stats.year,
+        &stats.scope,
     );
 
     // 3. Rooms
     if let Some(ref rooms) = stats.rooms {
-        render_rooms(&mut output, rooms, stats.year);
+        render_rooms(
+            &mut output,
+            rooms,
+            stats.summary.messages_sent,
+            &stats.scope,
+        );
     }
 
     // 4. Created rooms
@@ -33,7 +38,7 @@ pub fn render(stats: &Stats) -> Result<String> {
 
     // 6. Activity
     if let Some(ref activity) = stats.activity {
-        render_activity(&mut output, activity);
+        render_activity(&mut output, activity, &stats.scope);
     }
 
     // 7. Fun
@@ -46,15 +51,13 @@ pub fn render(stats: &Stats) -> Result<String> {
 
 fn render_header(output: &mut String, stats: &Stats) {
     let account = &stats.account;
+    let scope_label = scope_label(&stats.scope);
 
     // Title with display name if available
     if let Some(ref display_name) = account.display_name {
-        output.push_str(&format!(
-            "# 🎉 Matrix Year {} — {}\n",
-            stats.year, display_name
-        ));
+        output.push_str(&format!("# 🎉 Matrix {} — {}\n", scope_label, display_name));
     } else {
-        output.push_str(&format!("# 🎉 Matrix Year {}\n", stats.year));
+        output.push_str(&format!("# 🎉 Matrix {}\n", scope_label));
     }
 
     // Account details
@@ -79,7 +82,7 @@ fn render_header(output: &mut String, stats: &Stats) {
 
 // Coverage section intentionally removed from rendering; active days are shown in Summary.
 
-fn render_summary(output: &mut String, summary: &Summary, active_days: Option<i32>, year: i32) {
+fn render_summary(output: &mut String, summary: &Summary, active_days: Option<i32>, scope: &Scope) {
     output.push_str("### 📊 Summary\n");
     output.push_str(&format!(
         "- 💬 **Messages sent:** {}\n",
@@ -113,41 +116,118 @@ fn render_summary(output: &mut String, summary: &Summary, active_days: Option<i3
         ));
     }
 
-    // Explicit note that the rest of the report refers to the given year
-    output.push_str(&format!(
-        "\n*All sections below refer to year {}.*\n\n",
-        year
-    ));
+    // Explicit note that the rest of the report refers to the given scope (skip for life)
+    if !matches!(scope.kind, ScopeKind::Life) {
+        output.push_str(&format!(
+            "\n*All sections below refer to {}.*\n\n",
+            scope_phrase(scope)
+        ));
+    } else {
+        output.push('\n');
+    }
 }
 
-fn render_activity(output: &mut String, activity: &Activity) {
+fn render_activity(output: &mut String, activity: &Activity, scope: &Scope) {
     output.push_str("### 📈 Activity\n");
 
-    // By month - horizontal display in 2 rows
-    if let Some(ref by_month) = activity.by_month {
-        output.push_str("#### 📆 By month\n");
+    // By year (life scope)
+    if let Some(ref by_year) = activity.by_year {
+        output.push_str("#### 📆 By year\n");
+        output.push_str("| Year | Messages |\n");
+        output.push_str("| ---- | -------- |\n");
 
-        // January to June
-        output.push_str("| Jan | Feb | Mar | Apr | May | Jun |\n");
-        output.push_str("| --- | --- | --- | --- | --- | --- |\n");
-        output.push('|');
-        for month in 1..=6 {
-            let month_key = format!("{:02}", month);
-            let count = by_month.get(&month_key).copied().unwrap_or(0);
-            output.push_str(&format!(" {} |", format_number(count)));
+        let mut years: Vec<_> = by_year.keys().cloned().collect();
+        years.sort();
+        for year in years {
+            let count = by_year.get(&year).copied().unwrap_or(0);
+            output.push_str(&format!("| {} | {} |\n", year, format_number(count)));
         }
         output.push('\n');
+    }
 
-        // July to December
-        output.push_str("\n| Jul | Aug | Sep | Oct | Nov | Dec |\n");
-        output.push_str("| --- | --- | --- | --- | --- | --- |\n");
-        output.push('|');
-        for month in 7..=12 {
-            let month_key = format!("{:02}", month);
-            let count = by_month.get(&month_key).copied().unwrap_or(0);
-            output.push_str(&format!(" {} |", format_number(count)));
+    // By month - only when meaningful for the scope (year/life)
+    if matches!(scope.kind, ScopeKind::Year | ScopeKind::Life) {
+        if let Some(ref by_month) = activity.by_month {
+            output.push_str("#### 📆 By month\n");
+
+            // January to June
+            output.push_str("| Jan | Feb | Mar | Apr | May | Jun |\n");
+            output.push_str("| --- | --- | --- | --- | --- | --- |\n");
+            output.push('|');
+            for month in 1..=6 {
+                let month_key = format!("{:02}", month);
+                let count = by_month.get(&month_key).copied().unwrap_or(0);
+                output.push_str(&format!(" {} |", format_number(count)));
+            }
+            output.push('\n');
+
+            // July to December
+            output.push_str("\n| Jul | Aug | Sep | Oct | Nov | Dec |\n");
+            output.push_str("| --- | --- | --- | --- | --- | --- |\n");
+            output.push('|');
+            for month in 7..=12 {
+                let month_key = format!("{:02}", month);
+                let count = by_month.get(&month_key).copied().unwrap_or(0);
+                output.push_str(&format!(" {} |", format_number(count)));
+            }
+            output.push_str("\n\n");
         }
-        output.push_str("\n\n");
+    }
+
+    // By week (year scope)
+    if matches!(scope.kind, ScopeKind::Year) {
+        if let Some(ref by_week) = activity.by_week {
+            output.push_str("#### 📅 By week\n");
+            output.push_str("| Week | Messages |\n");
+            output.push_str("| ---- | -------- |\n");
+
+            let mut weeks: Vec<_> = by_week.keys().cloned().collect();
+            weeks.sort();
+            for week in weeks {
+                let count = by_week.get(&week).copied().unwrap_or(0);
+                output.push_str(&format!("| {} | {} |\n", week, format_number(count)));
+            }
+            output.push('\n');
+        }
+    }
+
+    // By day (month scope)
+    if matches!(scope.kind, ScopeKind::Month) {
+        if let Some(ref by_day) = activity.by_day {
+            output.push_str("#### 📅 By day\n");
+            output.push_str(
+                "| 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 | 09 | 10 | 11 | 12 | 13 | 14 | 15 |",
+            );
+            output.push('\n');
+            output.push_str(
+                "| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |",
+            );
+            output.push('\n');
+            output.push('|');
+            for day in 1..=15 {
+                let key = format!("{:02}", day);
+                let count = by_day.get(&key).copied().unwrap_or(0);
+                output.push_str(&format!(" {} |", format_number(count)));
+            }
+            output.push('\n');
+
+            output.push('\n');
+            output.push_str(
+                "| 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 |",
+            );
+            output.push('\n');
+            output.push_str(
+                "| -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |",
+            );
+            output.push('\n');
+            output.push('|');
+            for day in 16..=31 {
+                let key = format!("{:02}", day);
+                let count = by_day.get(&key).copied().unwrap_or(0);
+                output.push_str(&format!(" {} |", format_number(count)));
+            }
+            output.push_str("\n\n");
+        }
     }
 
     // By weekday - horizontal display
@@ -193,24 +273,13 @@ fn render_activity(output: &mut String, activity: &Activity) {
     }
 }
 
-fn render_rooms(output: &mut String, rooms: &Rooms, _year: i32) {
+fn render_rooms(output: &mut String, rooms: &Rooms, messages_sent: i32, _scope: &Scope) {
     output.push_str("### 🏘️ Rooms\n");
     output.push_str(&format!(
-        "You sent messages in **{}** rooms\n\n",
+        "You sent {} messages in **{}** rooms.\n\n",
+        format_number(messages_sent),
         rooms.total
     ));
-
-    if let Some(ref dist) = rooms.messages_by_room_type {
-        output.push_str("**Messages by room type**\n\n");
-        output.push_str("| DM | Private | Public |\n");
-        output.push_str("| -- | ------- | ------ |\n");
-        output.push_str(&format!(
-            "| {} | {} | {} |\n\n",
-            format_number(dist.dm.unwrap_or(0)),
-            format_number(dist.private.unwrap_or(0)),
-            format_number(dist.public.unwrap_or(0))
-        ));
-    }
 
     if let Some(ref top) = rooms.top {
         if !top.is_empty() {
@@ -414,6 +483,34 @@ fn render_fun(output: &mut String, fun: &Fun) {
     }
 
     output.push('\n');
+}
+
+fn scope_label(scope: &Scope) -> String {
+    if let Some(label) = &scope.label {
+        return label.clone();
+    }
+
+    match scope.kind {
+        ScopeKind::Year => format!("Year {}", scope.key),
+        ScopeKind::Month => format!("Month {}", scope.key),
+        ScopeKind::Week => format!("Week {}", scope.key),
+        ScopeKind::Day => format!("Day {}", scope.key),
+        ScopeKind::Life => "Life-to-date".to_string(),
+    }
+}
+
+fn scope_phrase(scope: &Scope) -> String {
+    if let Some(label) = &scope.label {
+        return label.clone();
+    }
+
+    match scope.kind {
+        ScopeKind::Year => format!("the year {}", scope.key),
+        ScopeKind::Month => format!("the month {}", scope.key),
+        ScopeKind::Week => format!("the week {}", scope.key),
+        ScopeKind::Day => format!("the day {}", scope.key),
+        ScopeKind::Life => "your life on Matrix so far".to_string(),
+    }
 }
 
 /// Format a number with thousand separators (raw integers, no abbreviation)

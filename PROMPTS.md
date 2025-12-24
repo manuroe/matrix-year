@@ -31,3 +31,29 @@
 - This stats should be under the rooms section. Also, call the Rooms section just Rooms and add intro text saying: "You sent messages in X rooms"
 - align the RoomEntry.permalink requirement with the Rust struct (optional), or leave as-is for now? The permalink is not optional
 - PR it
+
+## PR: Windowed Reports (Year, Month, Week, Day, Life)
+
+### Prompt 1: Extend tool to support multiple time windows
+> Extend the tool to build reports per year but also per month, per week, per day and per life (since the account creation). The reports should adapt given the window. Create json examples for those new stats. Their generated report should be part of the project.
+
+### Prompt 2: Keep README focused on year-in-review
+> Keep the readme as is, mainly. The main point is still a year-in-review. We can just add somewhere a "oh, by the way, `[my]` supports building monthly and other reports"
+
+### Prompt 3: Remove redundant scope phrase from life report
+> This line means nothing for life report
+
+### Prompt 4: Add peak month year for context
+> Give the year of the peak month
+
+### Prompt 5: Include message count in rooms section
+> Give the number of messages: "You sent X messages in **6** rooms". Apply it for all reports
+
+### Prompt 6: Remove rooms breakdown table
+> This text is not useful remove it
+
+### Prompt 7: Ensure consistent fun facts across reports
+> Fun facts should be the same for all the reports
+
+### Prompt 8: Remove deprecated year field
+> It is deprecated, remove it. In general we do not need to maintain retro compatibility because we regenerate the report on each change. Update the docs to indicate we do not need compat for stats json and renderers.

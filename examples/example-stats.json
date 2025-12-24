@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "year": 2025,
+  "scope": { "type": "year", "key": "2025" },
   "generated_at": "2025-12-20",
   "account": {
     "user_id": "@alice:example.org",

@@ -4,7 +4,7 @@
   "type": "object",
   "required": [
     "schema_version",
-    "year",
+    "scope",
     "generated_at",
     "account",
     "coverage",
@@ -17,9 +17,24 @@
       "minimum": 1
     },
 
-    "year": {
-      "type": "integer",
-      "minimum": 2000
+    "scope": {
+      "type": "object",
+      "required": ["type", "key"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["year", "month", "week", "day", "life"]
+        },
+        "key": {
+          "type": "string",
+          "description": "Identifier for the window. Examples: '2025', '2025-03', '2025-W12', '2025-03-15', 'life'."
+        },
+        "label": {
+          "type": ["string", "null"],
+          "description": "Optional human-friendly label for rendering."
+        }
+      }
     },
 
     "generated_at": {
@@ -84,11 +99,23 @@
           "type": "object",
           "additionalProperties": { "type": "integer", "minimum": 0 }
         },
+        "by_week": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
         "by_weekday": {
           "type": "object",
           "additionalProperties": { "type": "integer", "minimum": 0 }
         },
         "by_hour": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "by_day": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "by_year": {
           "type": "object",
           "additionalProperties": { "type": "integer", "minimum": 0 }
         }

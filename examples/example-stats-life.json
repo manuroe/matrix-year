@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "scope": { "type": "life", "key": "life", "label": "Life-to-date" },
+  "generated_at": "2025-12-24",
+  "account": {
+    "user_id": "@alice:example.org",
+    "display_name": "Alice",
+    "avatar_url": "mxc://example.org/abcdef123456",
+    "rooms_total": 42
+  },
+  "coverage": {
+    "from": "2019-06-01",
+    "to": "2025-12-19",
+    "days_active": 980
+  },
+  "summary": {
+    "messages_sent": 24832,
+    "active_rooms": 24,
+    "dm_rooms": 10,
+    "public_rooms": 7,
+    "private_rooms": 7,
+    "peak_month": {
+      "month": "October 2022",
+      "messages": 1920
+    }
+  },
+  "activity": {
+    "by_year": {
+      "2019": 1200,
+      "2020": 3200,
+      "2021": 4100,
+      "2022": 5200,
+      "2023": 4800,
+      "2024": 4600,
+      "2025": 3732
+    },
+    "by_month": {
+      "01": 1820,
+      "02": 1760,
+      "03": 2100,
+      "04": 1890,
+      "05": 2020,
+      "06": 2042,
+      "07": 2180,
+      "08": 2160,
+      "09": 2300,
+      "10": 2560,
+      "11": 2420,
+      "12": 1980
+    },
+    "by_weekday": {
+      "Mon": 3620,
+      "Tue": 3800,
+      "Wed": 3920,
+      "Thu": 4010,
+      "Fri": 3680,
+      "Sat": 2680,
+      "Sun": 2122
+    },
+    "by_hour": {
+      "07": 360,
+      "08": 720,
+      "09": 1520,
+      "10": 1800,
+      "11": 1920,
+      "12": 1820,
+      "18": 2400,
+      "19": 2580,
+      "20": 2760,
+      "21": 2880,
+      "22": 2100
+    }
+  },
+  "rooms": {
+    "total": 24,
+    "messages_by_room_type": { "dm": 10200, "private": 8800, "public": 5832 },
+    "top": [
+      { "name": "Friends", "messages": 4200, "percentage": 16.9, "permalink": "https://matrix.to/#/!abc123:example.org" },
+      { "name": "Project X", "messages": 3600, "percentage": 14.5, "permalink": "https://matrix.to/#/!jkl012:example.org" },
+      { "name": "Family", "messages": 3200, "percentage": 12.9, "permalink": "https://matrix.to/#/!ghi789:example.org" },
+      { "name": "Community", "messages": 2800, "percentage": 11.3, "permalink": "https://matrix.to/#/!comm:example.org" }
+    ]
+  },
+  "reactions": {
+    "total": 8120,
+    "top_emojis": [
+      { "emoji": "😂", "count": 1420 },
+      { "emoji": "👍", "count": 1180 },
+      { "emoji": "❤️", "count": 960 },
+      { "emoji": "🎉", "count": 820 },
+      { "emoji": "🤔", "count": 640 }
+    ],
+    "top_messages": [
+      { "permalink": "https://matrix.to/#/!abc:example.org/$event777", "reaction_count": 180 },
+      { "permalink": "https://matrix.to/#/!abc:example.org/$event778", "reaction_count": 162 }
+    ]
+  },
+  "created_rooms": {
+    "total": 8,
+    "dm_rooms": 2,
+    "public_rooms": 3,
+    "private_rooms": 3
+  },
+  "fun": {
+    "longest_message_chars": 2800,
+    "favorite_weekday": "Thu",
+    "peak_hour": "21",
+    "longest_streak_days": 48,
+    "reactions_per_message": 0.32,
+    "edits_per_message": 0.05,
+    "lurking_rooms": 22,
+    "sent_encrypted_messages_ratio": 0.74
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "scope": { "type": "day", "key": "2025-03-15" },
+  "generated_at": "2025-03-16",
+  "account": {
+    "user_id": "@alice:example.org",
+    "display_name": "Alice",
+    "avatar_url": "mxc://example.org/abcdef123456",
+    "rooms_total": 27
+  },
+  "coverage": {
+    "from": "2025-03-15",
+    "to": "2025-03-15",
+    "days_active": 1
+  },
+  "summary": {
+    "messages_sent": 58,
+    "active_rooms": 3,
+    "dm_rooms": 2,
+    "public_rooms": 0,
+    "private_rooms": 1
+  },
+  "activity": {
+    "by_hour": {
+      "07": 4, "08": 6, "09": 8, "10": 10, "11": 8, "12": 4,
+      "18": 6, "19": 8, "20": 10, "21": 6, "22": 4
+    }
+  },
+  "rooms": {
+    "total": 3,
+    "messages_by_room_type": { "dm": 30, "private": 28 },
+    "top": [
+      { "name": "Friends", "messages": 22, "percentage": 37.9, "permalink": "https://matrix.to/#/!abc123:example.org" },
+      { "name": "Family", "messages": 18, "percentage": 31.0, "permalink": "https://matrix.to/#/!ghi789:example.org" }
+    ]
+  },
+  "reactions": {
+    "total": 10,
+    "top_emojis": [
+      { "emoji": "😊", "count": 4 },
+      { "emoji": "👍", "count": 3 }
+    ]
+  },
+  "created_rooms": {
+    "total": 0
+  },
+  "fun": {
+    "longest_message_chars": 380,
+    "favorite_weekday": "Saturday",
+    "peak_hour": "10",
+    "longest_streak_days": 1,
+    "reactions_per_message": 0.17,
+    "edits_per_message": 0.03,
+    "crawl_duration_seconds": 2,
+    "lurking_rooms": 24,
+    "sent_encrypted_messages_ratio": 0.69
+  }
+}

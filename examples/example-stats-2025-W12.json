@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "scope": { "type": "week", "key": "2025-W12" },
+  "generated_at": "2025-03-25",
+  "account": {
+    "user_id": "@alice:example.org",
+    "display_name": "Alice",
+    "avatar_url": "mxc://example.org/abcdef123456",
+    "rooms_total": 27
+  },
+  "coverage": {
+    "from": "2025-03-17",
+    "to": "2025-03-23",
+    "days_active": 6
+  },
+  "summary": {
+    "messages_sent": 180,
+    "active_rooms": 4,
+    "dm_rooms": 2,
+    "public_rooms": 1,
+    "private_rooms": 1
+  },
+  "activity": {
+    "by_week": { "2025-W12": 180 },
+    "by_weekday": {
+      "Mon": 22,
+      "Tue": 28,
+      "Wed": 32,
+      "Thu": 36,
+      "Fri": 30,
+      "Sat": 22,
+      "Sun": 10
+    },
+    "by_day": {
+      "17": 24,
+      "18": 30,
+      "19": 32,
+      "20": 28,
+      "21": 24,
+      "22": 26,
+      "23": 16
+    },
+    "by_hour": {
+      "08": 6, "09": 12, "10": 14, "11": 16, "12": 10,
+      "18": 22, "19": 26, "20": 28, "21": 20, "22": 14
+    }
+  },
+  "rooms": {
+    "total": 4,
+    "messages_by_room_type": { "dm": 70, "private": 60, "public": 50 },
+    "top": [
+      { "name": "Friends", "messages": 64, "percentage": 35.6, "permalink": "https://matrix.to/#/!abc123:example.org" },
+      { "name": "Project X", "messages": 52, "percentage": 28.9, "permalink": "https://matrix.to/#/!jkl012:example.org" }
+    ]
+  },
+  "reactions": {
+    "total": 32,
+    "top_emojis": [
+      { "emoji": "👏", "count": 10 },
+      { "emoji": "👍", "count": 8 }
+    ],
+    "top_messages": [
+      { "permalink": "https://matrix.to/#/!abc:example.org/$event200", "reaction_count": 6 }
+    ]
+  },
+  "created_rooms": {
+    "total": 0
+  },
+  "fun": {
+    "longest_message_chars": 520,
+    "favorite_weekday": "Thursday",
+    "peak_hour": "20",
+    "longest_streak_days": 6,
+    "reactions_per_message": 0.18,
+    "edits_per_message": 0.05,
+    "crawl_duration_seconds": 8,
+    "lurking_rooms": 23,
+    "sent_encrypted_messages_ratio": 0.72
+  }
+}
