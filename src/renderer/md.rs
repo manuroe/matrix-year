@@ -174,8 +174,8 @@ fn render_activity(output: &mut String, activity: &Activity, scope: &Scope) {
         }
     }
 
-    // By week (week/year scopes)
-    if matches!(scope.kind, ScopeKind::Year | ScopeKind::Week) {
+    // By week (year scope)
+    if matches!(scope.kind, ScopeKind::Year) {
         if let Some(ref by_week) = activity.by_week {
             output.push_str("#### 📅 By week\n");
             output.push_str("| Week | Messages |\n");
@@ -191,8 +191,8 @@ fn render_activity(output: &mut String, activity: &Activity, scope: &Scope) {
         }
     }
 
-    // By day (month/week scopes)
-    if matches!(scope.kind, ScopeKind::Month | ScopeKind::Week) {
+    // By day (month scope)
+    if matches!(scope.kind, ScopeKind::Month) {
         if let Some(ref by_day) = activity.by_day {
             output.push_str("#### 📅 By day\n");
             output.push_str(
