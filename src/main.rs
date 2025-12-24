@@ -22,7 +22,7 @@ const HELP_RENDER: &str = "\
 Render reports (md,html)
 
 Usage:
-  my --render [formats] --json-stats <path> [--output <dir>]
+    my --render [formats] --json-stats <path> [--output <dir>]
 
 Options:
     --render [formats]   Comma-separated formats (md,html). Empty renders all.

@@ -325,16 +325,9 @@ Rules:
 - New fields may be added or modified without compatibility concerns
 - Renderers must ignore unknown fields for forward compatibility
 
-## 5. Extensibility
-
-- `schema_version` must be incremented for any schema changes
-- **No backward compatibility guarantee:** stats JSON and renderers are regenerated on each change
-- New fields may be added or modified without compatibility concerns
-- Renderers must ignore unknown fields for forward compatibility
 
 ---
 
----
 
 ## 6. Determinism & Stability
 
