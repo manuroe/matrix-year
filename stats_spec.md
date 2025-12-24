@@ -139,9 +139,12 @@ This section contains **core stats** (always rendered) and **extended stats** (r
   "public_rooms": 4,
   "private_rooms": 3,
 
-  "peak_month": {
-    "month": "October",
-    "messages": 512
+  "peaks": {
+    "year": { "year": "2022", "messages": 5200 },
+    "month": { "month": "October", "messages": 512 },
+    "week": { "week": "2025-W12", "messages": 210 },
+    "day": { "day": "2025-03-15", "messages": 42 },
+    "hour": { "hour": "21", "messages": 612, "date": "2025-10-21" }
   }
 }
 ```
@@ -152,7 +155,8 @@ Rules:
 - Extended fields:
   - Must be present in stats if computable
   - May be omitted by renderers in non-`full` modes
-- `peak_month` applies to `year` and `life` scopes; omit for smaller windows
+- `peaks` groups the strongest activity per period; include only the granularities that make sense for the scope (e.g., `year`/`month`/`hour` for `life`, `week`/`day`/`hour` for `month` scope)
+- `peaks.hour.date` is mandatory and must provide the calendar date of that hour (local time)
 - Room counts must be consistent with `rooms.total`
 
 

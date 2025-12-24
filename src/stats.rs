@@ -77,7 +77,7 @@ pub struct Summary {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub private_rooms: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub peak_month: Option<PeakMonth>,
+    pub peaks: Option<Peaks>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -91,9 +91,48 @@ pub struct MessagesByRoomType {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct Peaks {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub year: Option<PeakYear>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub month: Option<PeakMonth>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub week: Option<PeakWeek>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub day: Option<PeakDay>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hour: Option<PeakHour>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct PeakMonth {
     pub month: String,
     pub messages: i32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PeakYear {
+    pub year: String,
+    pub messages: i32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PeakWeek {
+    pub week: String,
+    pub messages: i32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PeakDay {
+    pub day: String,
+    pub messages: i32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PeakHour {
+    pub hour: String,
+    pub messages: i32,
+    pub date: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
