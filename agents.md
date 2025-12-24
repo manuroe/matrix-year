@@ -444,7 +444,16 @@ Keep changes focused and avoid redundancy.
 Execute all project linters and tests:
 Ensure all checks pass before proceeding.
 
-#### 5. Request Validation
+#### 5. Apply Code Formatting
+
+Format all Rust code:
+```bash
+cargo fmt
+```
+
+Commit formatting changes with a separate "chore: apply cargo fmt" commit before proceeding.
+
+#### 6. Request Validation
 
 **Before creating the PR**, present the `PROMPTS.md` additions to the user and ask:
 
@@ -456,7 +465,7 @@ Ensure all checks pass before proceeding.
 
 Wait for explicit confirmation before creating the PR.
 
-#### 6. Create Pull Request
+#### 7. Create Pull Request
 
 Only after validation:
 
