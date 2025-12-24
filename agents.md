@@ -385,6 +385,15 @@ When unsure, prefer:
 - Small, composable modules
 - Clear error propagation
 
+### Rust quality bar
+
+- No `unsafe`; avoid panics except in tests and build-time invariants.
+- Treat all I/O with context (`anyhow::Context`) so failures are diagnosable.
+- Prefer borrowing over cloning; use `&Path`/`&PathBuf` instead of `String` for filesystem inputs.
+- Keep CLI help and runtime behavior in sync; rely on `clap`-generated help where possible to avoid drift.
+- Run `cargo fmt` and `cargo clippy --all-targets --all-features -D warnings` before merging.
+- Add focused tests when touching stats schema, rendering logic, or CLI parsing; keep example outputs up to date when behavior changes.
+
 ---
 
 ## 11. Git & GitHub Workflow
