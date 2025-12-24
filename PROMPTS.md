@@ -51,7 +51,7 @@
 
 ## PR: Peak Activity Section
 
-### Prompt 1: Add peek section with peak year/month/week/day/hour
+### Prompt 1: Add peak section with peak year/month/week/day/hour
 > Add a peek section sent message in the reports with (when it applies):
 > - peak year
 > - peak month
@@ -59,7 +59,7 @@
 > - peak day
 
 
-> - peak hear (hour)
+> - peak hour
 > Give the number of messages
 
 ### Prompt 2: Rename section and move under Activity
@@ -69,10 +69,10 @@
 ### Prompt 3: Add week and day peaks to all examples
 > I want week and day peaks in the examples.
 > All examples must have them when they make sense.
-> Make sure the data is coherent. The number of messages of the peak hour can be bigger than the number for peak week, etc.
+> Make sure the data is coherent and respects the message count hierarchy (peak hour ≤ peak day ≤ peak week ≤ peak month ≤ peak year).
 
 ### Prompt 4: Remove backward compatibility
-> don't take care of backward compatibililty
+> don't take care of backward compatibility
 
 ### Prompt 5: Make peak hour date mandatory
 > it is mandatory to make it more useful
