@@ -103,3 +103,8 @@
 
 ### Prompt 3: Create pull request
 > PR it
+
+## PR: Document Rust quality bar
+
+- Check the quality of the code. It must be rust idiomatic and must look like built by a senior rust dev would do. `unsafe` must not be used for example. Update agents.md to keep the standard high.
+- PR the current change following the agents.md guide using a separate branch.
