@@ -38,7 +38,7 @@ pub fn render(stats: &Stats) -> Result<String> {
 
     // 6. Activity
     if let Some(ref activity) = stats.activity {
-        render_activity(&mut output, activity, &stats.scope);
+        render_activity(&mut output, activity, &stats.scope, &stats.summary);
     }
 
     // 7. Fun
@@ -108,14 +108,6 @@ fn render_summary(output: &mut String, summary: &Summary, active_days: Option<i3
         output.push_str(&format!("- 🔒 **Private rooms:** {}\n", private_rooms));
     }
 
-    if let Some(ref peak_month) = summary.peak_month {
-        output.push_str(&format!(
-            "- 📈 **Peak month:** {} ({} messages) 🚀\n",
-            peak_month.month,
-            format_number(peak_month.messages)
-        ));
-    }
-
     // Explicit note that the rest of the report refers to the given scope (skip for life)
     if !matches!(scope.kind, ScopeKind::Life) {
         output.push_str(&format!(
@@ -127,8 +119,70 @@ fn render_summary(output: &mut String, summary: &Summary, active_days: Option<i3
     }
 }
 
-fn render_activity(output: &mut String, activity: &Activity, scope: &Scope) {
+fn render_peak_activity(output: &mut String, summary: &Summary) {
+    let mut lines: Vec<String> = Vec::new();
+
+    if let Some(peaks) = summary.peaks.as_ref() {
+        if let Some(ref year) = peaks.year {
+            lines.push(format!(
+                "- 🗓️ **Peak year:** {} ({} messages)",
+                year.year,
+                format_number(year.messages)
+            ));
+        }
+
+        if let Some(ref month) = peaks.month {
+            lines.push(format!(
+                "- 📆 **Peak month:** {} ({} messages)",
+                month.month,
+                format_number(month.messages)
+            ));
+        }
+
+        if let Some(ref week) = peaks.week {
+            lines.push(format!(
+                "- 📅 **Peak week:** {} ({} messages)",
+                week.week,
+                format_number(week.messages)
+            ));
+        }
+
+        if let Some(ref day) = peaks.day {
+            lines.push(format!(
+                "- 📍 **Peak day:** {} ({} messages)",
+                day.day,
+                format_number(day.messages)
+            ));
+        }
+
+        if let Some(ref hour) = peaks.hour {
+            let when = format!("{}:00 on {}", hour.hour, hour.date);
+
+            lines.push(format!(
+                "- 🕐 **Peak hour:** {} ({} messages)",
+                when,
+                format_number(hour.messages)
+            ));
+        }
+    }
+
+    if lines.is_empty() {
+        return;
+    }
+
+    output.push_str("#### 🚀 Peaks\n");
+    for line in lines {
+        output.push_str(&line);
+        output.push('\n');
+    }
+    output.push('\n');
+}
+
+fn render_activity(output: &mut String, activity: &Activity, scope: &Scope, summary: &Summary) {
     output.push_str("### 📈 Activity\n");
+
+    // Peaks come first inside Activity
+    render_peak_activity(output, summary);
 
     // By year (life scope)
     if let Some(ref by_year) = activity.by_year {

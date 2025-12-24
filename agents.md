@@ -229,6 +229,7 @@ Convert raw events into **scope-aware derived statistics** (year, month, week, d
 - Stats **should be forward-compatible**
 - Rooms ranking includes **DM**, **private**, and **public** rooms, counting only messages **sent by the account**; top room entries must carry a permalink.
 - Optional distribution `messages_by_room_type` (dm/private/public) may be emitted for the Rooms section; renderers may omit it in non-`full` modes.
+- **Peak activity** (strongest periods per granularity) is included in summary via `peaks` object with optional fields for year, month, week, day, and hour. Peak hour must include the calendar date (local time) to provide temporal context.
 
 ---
 

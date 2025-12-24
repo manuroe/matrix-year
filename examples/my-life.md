@@ -12,7 +12,6 @@
 - 👥 **DM rooms:** 10
 - 🌐 **Public rooms:** 7
 - 🔒 **Private rooms:** 7
-- 📈 **Peak month:** October 2022 (1,920 messages) 🚀
 
 ### 🏘️ Rooms
 You sent 24,832 messages in **24** rooms.
@@ -53,6 +52,13 @@ You made people smile with **8,120** reactions on your messages!
 | 2 | [view](https://matrix.to/#/!abc:example.org/$event778) | 162 |
 
 ### 📈 Activity
+#### 🚀 Peaks
+- 🗓️ **Peak year:** 2022 (5,200 messages)
+- 📆 **Peak month:** October 2022 (2,560 messages)
+- 📅 **Peak week:** 2022-W42 (680 messages)
+- 📍 **Peak day:** 2022-10-18 (156 messages)
+- 🕐 **Peak hour:** 21:00 on 2022-10-18 (72 messages)
+
 #### 📆 By year
 | Year | Messages |
 | ---- | -------- |

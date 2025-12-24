@@ -49,11 +49,42 @@
 ### Prompt 5: Include message count in rooms section
 > Give the number of messages: "You sent X messages in **6** rooms". Apply it for all reports
 
-### Prompt 6: Remove rooms breakdown table
+## PR: Peak Activity Section
+
+### Prompt 1: Add peak section with peak year/month/week/day/hour
+> Add a peek section sent message in the reports with (when it applies):
+> - peak year
+> - peak month
+> - peak week
+> - peak day
+
+
+> - peak hour
+> Give the number of messages
+
+### Prompt 2: Rename section and move under Activity
+> Make "🚀 Peak activity" the first sub-section of "📈 Activity". Call it peaks.
+> We need the date and time for the peak hour
+
+### Prompt 3: Add week and day peaks to all examples
+> I want week and day peaks in the examples.
+> All examples must have them when they make sense.
+> Make sure the data is coherent and respects the message count hierarchy (peak hour ≤ peak day ≤ peak week ≤ peak month ≤ peak year).
+
+### Prompt 4: Remove backward compatibility
+> don't take care of backward compatibility
+
+### Prompt 5: Make peak hour date mandatory
+> it is mandatory to make it more useful
+
+### Prompt 6: Generate all example reports
+> generate reports for all the examples
+
+### Prompt 7: Remove rooms breakdown table
 > This text is not useful remove it
 
-### Prompt 7: Ensure consistent fun facts across reports
+### Prompt 8: Ensure consistent fun facts across reports
 > Fun facts should be the same for all the reports
 
-### Prompt 8: Remove deprecated year field
+### Prompt 9: Remove deprecated year field
 > It is deprecated, remove it. In general we do not need to maintain retro compatibility because we regenerate the report on each change. Update the docs to indicate we do not need compat for stats json and renderers.

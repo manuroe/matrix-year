@@ -12,7 +12,6 @@
 - 👥 **DM rooms:** 5
 - 🌐 **Public rooms:** 4
 - 🔒 **Private rooms:** 3
-- 📈 **Peak month:** October (512 messages) 🚀
 
 *All sections below refer to the year 2025.*
 
@@ -59,6 +58,12 @@ You made people smile with **1,120** reactions on your messages!
 | 5 | [view](https://matrix.to/#/!ghi:example.org/$event5) | 27 |
 
 ### 📈 Activity
+#### 🚀 Peaks
+- 📆 **Peak month:** October (512 messages)
+- 📅 **Peak week:** 2025-W42 (130 messages)
+- 📍 **Peak day:** 2025-10-21 (45 messages)
+- 🕐 **Peak hour:** 21:00 on 2025-10-21 (28 messages)
+
 #### 📆 By month
 | Jan | Feb | Mar | Apr | May | Jun |
 | --- | --- | --- | --- | --- | --- |

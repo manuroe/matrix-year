@@ -19,9 +19,24 @@
     "dm_rooms": 5,
     "public_rooms": 4,
     "private_rooms": 3,
-    "peak_month": {
-      "month": "October",
-      "messages": 512
+    "peaks": {
+      "month": {
+        "month": "October",
+        "messages": 512
+      },
+      "week": {
+        "week": "2025-W42",
+        "messages": 130
+      },
+      "day": {
+        "day": "2025-10-21",
+        "messages": 45
+      },
+      "hour": {
+        "hour": "21",
+        "messages": 28,
+        "date": "2025-10-21"
+      }
     }
   },
   "activity": {

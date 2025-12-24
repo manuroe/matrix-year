@@ -50,6 +50,11 @@ You made people smile with **140** reactions on your messages!
 | 1 | [view](https://matrix.to/#/!abc:example.org/$event100) | 12 |
 
 ### 📈 Activity
+#### 🚀 Peaks
+- 📅 **Peak week:** 2025-W12 (152 messages)
+- 📍 **Peak day:** 2025-03-21 (30 messages)
+- 🕐 **Peak hour:** 21:00 on 2025-03-21 (18 messages)
+
 #### 📅 By day
 | 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 | 09 | 10 | 11 | 12 | 13 | 14 | 15 |
 | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |

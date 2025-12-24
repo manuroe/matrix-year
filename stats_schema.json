@@ -77,15 +77,56 @@
         "public_rooms": { "type": "integer", "minimum": 0 },
         "private_rooms": { "type": "integer", "minimum": 0 },
 
-        
-
-        "peak_month": {
+        "peaks": {
           "type": "object",
-          "required": ["month", "messages"],
           "additionalProperties": false,
           "properties": {
-            "month": { "type": "string" },
-            "messages": { "type": "integer", "minimum": 0 }
+            "year": {
+              "type": "object",
+              "required": ["year", "messages"],
+              "additionalProperties": false,
+              "properties": {
+                "year": { "type": "string" },
+                "messages": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "month": {
+              "type": "object",
+              "required": ["month", "messages"],
+              "additionalProperties": false,
+              "properties": {
+                "month": { "type": "string" },
+                "messages": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "week": {
+              "type": "object",
+              "required": ["week", "messages"],
+              "additionalProperties": false,
+              "properties": {
+                "week": { "type": "string" },
+                "messages": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "day": {
+              "type": "object",
+              "required": ["day", "messages"],
+              "additionalProperties": false,
+              "properties": {
+                "day": { "type": "string" },
+                "messages": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "hour": {
+              "type": "object",
+              "required": ["hour", "messages", "date"],
+              "additionalProperties": false,
+              "properties": {
+                "hour": { "type": "string" },
+                "messages": { "type": "integer", "minimum": 0 },
+                "date": { "type": "string", "format": "date" }
+              }
+            }
           }
         }
       }

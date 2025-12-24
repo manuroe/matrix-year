@@ -18,7 +18,10 @@
     "active_rooms": 3,
     "dm_rooms": 2,
     "public_rooms": 0,
-    "private_rooms": 1
+    "private_rooms": 1,
+    "peaks": {
+      "hour": { "hour": "20", "messages": 10, "date": "2025-03-15" }
+    }
   },
   "activity": {
     "by_hour": {

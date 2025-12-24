@@ -18,7 +18,12 @@
     "active_rooms": 6,
     "dm_rooms": 3,
     "public_rooms": 2,
-    "private_rooms": 1
+    "private_rooms": 1,
+    "peaks": {
+      "week": { "week": "2025-W12", "messages": 152 },
+      "day": { "day": "2025-03-21", "messages": 30 },
+      "hour": { "hour": "21", "messages": 18, "date": "2025-03-21" }
+    }
   },
   "activity": {
     "by_day": {
