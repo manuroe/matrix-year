@@ -144,7 +144,7 @@ This section contains **core stats** (always rendered) and **extended stats** (r
     "month": { "month": "October", "messages": 512 },
     "week": { "week": "2025-W12", "messages": 210 },
     "day": { "day": "2025-03-15", "messages": 42 },
-    "hour": { "hour": "21", "messages": 612, "date": "2025-10-21" }
+    "hour": { "hour": "21", "messages": 36, "date": "2025-10-21" }
   }
 }
 ```
