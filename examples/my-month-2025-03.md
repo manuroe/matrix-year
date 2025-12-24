@@ -1,13 +1,12 @@
-# 🎉 Matrix Month 2025-03 — Alice
+# 🎉 Your Matrix Month 2025-03 — Alice
 ### 🧑 Account
 - **User ID:** [@alice:example.org](https://matrix.to/#/@alice:example.org)
 - **Display name:** Alice
-- **Avatar (MXC):** mxc://example.org/abcdef123456
+- **Avatar:** [https://matrix.org/_matrix/media/r0/download/example.org/abcdef123456](https://matrix.org/_matrix/media/r0/download/example.org/abcdef123456)
 - **Total joined rooms:** 27
 
 ### 📊 Summary
 - 💬 **Messages sent:** 620
-- 🏠 **Active rooms:** 6
 - 🔥 **Active days:** 22
 - 👥 **DM rooms:** 3
 - 🌐 **Public rooms:** 2
@@ -27,7 +26,8 @@ Your most active rooms:
 | 3 | [Family](https://matrix.to/#/!ghi789:example.org) | 120 | 19.3 |
 
 ### 🏗️ Rooms You Created
-- **Total:** 1
+You created **1** rooms this month.
+
 - 👥 **DM rooms:** 0
 - 🌐 **Public rooms:** 1
 - 🔒 **Private rooms:** 0

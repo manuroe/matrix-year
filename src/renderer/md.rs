@@ -28,7 +28,7 @@ pub fn render(stats: &Stats) -> Result<String> {
 
     // 4. Created rooms
     if let Some(ref created_rooms) = stats.created_rooms {
-        render_created_rooms(&mut output, created_rooms);
+        render_created_rooms(&mut output, created_rooms, &stats.scope);
     }
 
     // 5. Reactions
@@ -55,9 +55,12 @@ fn render_header(output: &mut String, stats: &Stats) {
 
     // Title with display name if available
     if let Some(ref display_name) = account.display_name {
-        output.push_str(&format!("# 🎉 Matrix {} — {}\n", scope_label, display_name));
+        output.push_str(&format!(
+            "# 🎉 Your Matrix {} — {}\n",
+            scope_label, display_name
+        ));
     } else {
-        output.push_str(&format!("# 🎉 Matrix {}\n", scope_label));
+        output.push_str(&format!("# 🎉 Your Matrix {}\n", scope_label));
     }
 
     // Account details
@@ -71,7 +74,24 @@ fn render_header(output: &mut String, stats: &Stats) {
         output.push_str(&format!("- **Display name:** {}\n", name));
     }
     if let Some(ref avatar) = account.avatar_url {
-        output.push_str(&format!("- **Avatar (MXC):** {}\n", avatar));
+        // Convert mxc:// URL to HTTPS media endpoint
+        let avatar_https = if avatar.starts_with("mxc://") {
+            let mxc_parts: Vec<&str> = avatar.strip_prefix("mxc://").unwrap().split('/').collect();
+            if mxc_parts.len() >= 2 {
+                format!(
+                    "https://matrix.org/_matrix/media/r0/download/{}/{}",
+                    mxc_parts[0], mxc_parts[1]
+                )
+            } else {
+                avatar.clone()
+            }
+        } else {
+            avatar.clone()
+        };
+        output.push_str(&format!(
+            "- **Avatar:** [{}]({})\n",
+            avatar_https, avatar_https
+        ));
     }
     output.push_str(&format!(
         "- **Total joined rooms:** {}\n",
@@ -87,10 +107,6 @@ fn render_summary(output: &mut String, summary: &Summary, active_days: Option<i3
     output.push_str(&format!(
         "- 💬 **Messages sent:** {}\n",
         format_number(summary.messages_sent)
-    ));
-    output.push_str(&format!(
-        "- 🏠 **Active rooms:** {}\n",
-        summary.active_rooms
     ));
     if let Some(days) = active_days {
         output.push_str(&format!("- 🔥 **Active days:** {}\n", days));
@@ -417,11 +433,21 @@ fn render_reactions(output: &mut String, reactions: &Reactions) {
     }
 }
 
-fn render_created_rooms(output: &mut String, created_rooms: &CreatedRooms) {
+fn render_created_rooms(output: &mut String, created_rooms: &CreatedRooms, scope: &Scope) {
     output.push_str("### 🏗️ Rooms You Created\n");
+
+    // Add contextual sentence based on scope
+    let scope_context = match scope.kind {
+        ScopeKind::Year => "this year",
+        ScopeKind::Month => "this month",
+        ScopeKind::Week => "this week",
+        ScopeKind::Day => "today",
+        ScopeKind::Life => "in your lifetime",
+    };
     output.push_str(&format!(
-        "- **Total:** {}\n",
-        format_number(created_rooms.total)
+        "You created **{}** rooms {}.\n\n",
+        format_number(created_rooms.total),
+        scope_context
     ));
 
     if let Some(dm_rooms) = created_rooms.dm_rooms {

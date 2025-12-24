@@ -1,13 +1,12 @@
-# 🎉 Matrix Life-to-date — Alice
+# 🎉 Your Matrix Life-to-date — Alice
 ### 🧑 Account
 - **User ID:** [@alice:example.org](https://matrix.to/#/@alice:example.org)
 - **Display name:** Alice
-- **Avatar (MXC):** mxc://example.org/abcdef123456
+- **Avatar:** [https://matrix.org/_matrix/media/r0/download/example.org/abcdef123456](https://matrix.org/_matrix/media/r0/download/example.org/abcdef123456)
 - **Total joined rooms:** 42
 
 ### 📊 Summary
 - 💬 **Messages sent:** 24,832
-- 🏠 **Active rooms:** 24
 - 🔥 **Active days:** 980
 - 👥 **DM rooms:** 10
 - 🌐 **Public rooms:** 7
@@ -26,7 +25,8 @@ Your most active rooms:
 | 4 | [Community](https://matrix.to/#/!comm:example.org) | 2,800 | 11.3 |
 
 ### 🏗️ Rooms You Created
-- **Total:** 8
+You created **8** rooms in your lifetime.
+
 - 👥 **DM rooms:** 2
 - 🌐 **Public rooms:** 3
 - 🔒 **Private rooms:** 3

@@ -88,3 +88,18 @@
 
 ### Prompt 9: Remove deprecated year field
 > It is deprecated, remove it. In general we do not need to maintain retro compatibility because we regenerate the report on each change. Update the docs to indicate we do not need compat for stats json and renderers.
+
+## PR: Markdown Renderer Formatting Tweaks
+
+### Prompt 1: Refine markdown report titles and sections
+> Few tweaks for the MD report:
+> - change the title report to "# 🎉 Your Matrix Year 2025 — Alice"
+> - use https:// link instead of mxc://
+> - "🏠 **Active rooms:**" is not clear. Remove it. We have the info in the next section.
+> - in "### 🏗️ Rooms You Created", remove "- **Total:** 8". Add a sentence "You created **2 rooms** this year.", "this year" or the given window
+
+### Prompt 2: Start implementation
+> Start implementation
+
+### Prompt 3: Create pull request
+> PR it
