@@ -1,13 +1,12 @@
-# 🎉 Matrix Year 2025 — Alice
+# 🎉 Your Matrix Year 2025 — Alice
 ### 🧑 Account
 - **User ID:** [@alice:example.org](https://matrix.to/#/@alice:example.org)
 - **Display name:** Alice
-- **Avatar (MXC):** mxc://example.org/abcdef123456
+- **Avatar:** [https://matrix.org/_matrix/media/r0/download/example.org/abcdef123456](https://matrix.org/_matrix/media/r0/download/example.org/abcdef123456)
 - **Total joined rooms:** 27
 
 ### 📊 Summary
 - 💬 **Messages sent:** 4,832
-- 🏠 **Active rooms:** 12
 - 🔥 **Active days:** 220
 - 👥 **DM rooms:** 5
 - 🌐 **Public rooms:** 4
@@ -29,7 +28,8 @@ Your most active rooms:
 | 5 | [Bob](https://matrix.to/#/!mno345:example.org) | 580 | 12.0 |
 
 ### 🏗️ Rooms You Created
-- **Total:** 2
+You created **2** rooms this year.
+
 - 👥 **DM rooms:** 0
 - 🌐 **Public rooms:** 1
 - 🔒 **Private rooms:** 1

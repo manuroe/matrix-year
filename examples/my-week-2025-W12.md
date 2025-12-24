@@ -1,13 +1,12 @@
-# 🎉 Matrix Week 2025-W12 — Alice
+# 🎉 Your Matrix Week 2025-W12 — Alice
 ### 🧑 Account
 - **User ID:** [@alice:example.org](https://matrix.to/#/@alice:example.org)
 - **Display name:** Alice
-- **Avatar (MXC):** mxc://example.org/abcdef123456
+- **Avatar:** [https://matrix.org/_matrix/media/r0/download/example.org/abcdef123456](https://matrix.org/_matrix/media/r0/download/example.org/abcdef123456)
 - **Total joined rooms:** 27
 
 ### 📊 Summary
 - 💬 **Messages sent:** 180
-- 🏠 **Active rooms:** 4
 - 🔥 **Active days:** 6
 - 👥 **DM rooms:** 2
 - 🌐 **Public rooms:** 1
@@ -26,7 +25,8 @@ Your most active rooms:
 | 2 | [Project X](https://matrix.to/#/!jkl012:example.org) | 52 | 28.9 |
 
 ### 🏗️ Rooms You Created
-- **Total:** 0
+You created **0** rooms this week.
+
 
 ### 😊 Reactions
 You made people smile with **32** reactions on your messages!
