@@ -372,12 +372,14 @@ Agents **must respect**:
 - Account isolation (no cross-account reads)
 - SQLite as the single source of truth
 - Incremental crawling via sync tokens
+- Session persistence via SDK sessions (access + refresh tokens) and OS keychain-first storage policy
 
 Agents **must not**:
 
 - Store secrets in the database
 - Use global mutable state
 - Block the async runtime
+- Persist plaintext secrets in repo or stats cache; use JSON fallback only when OS keychain is unavailable and warn clearly
 
 When unsure, prefer:
 
@@ -392,6 +394,7 @@ When unsure, prefer:
 - Prefer borrowing over cloning; use `&Path`/`&PathBuf` instead of `String` for filesystem inputs.
 - Keep CLI help and runtime behavior in sync; rely on `clap`-generated help where possible to avoid drift.
 - Run `cargo fmt` and `cargo clippy --all-targets --all-features -D warnings` before merging.
+- Handle authentication errors with context; ensure session restore paths use `restore_session` with `SessionMeta` and `SessionTokens`.
 - Add focused tests when touching stats schema, rendering logic, or CLI parsing; keep example outputs up to date when behavior changes.
 
 ---
@@ -477,11 +480,12 @@ Wait for explicit confirmation before creating the PR.
 
 #### 7. Create Pull Request
 
+
 Only after validation:
 
 - Commit all changes with descriptive message
 - Push to feature branch
-- Create PR with appropriate title and description
+- Create PR with appropriate title and description using the GitHub CLI (`gh`)
 - Reference any related issues
 
 ---
