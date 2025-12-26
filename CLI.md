@@ -4,6 +4,60 @@ This document describes the command-line interface for `my` (matrix-year).
 
 ## Commands
 
+### `login` / `logout`
+
+Authenticate a Matrix account and securely store credentials.
+
+**Usage:**
+```bash
+my login [--user-id <@alice:example.org>]
+my logout [--user-id <@alice:example.org>]
+```
+
+**Login Behavior:**
+- Displays existing logged-in accounts for reference (if any).
+- Prompts for homeserver, username and password to add a new account.
+- Stores secrets in the OS keychain (access + refresh tokens, DB passphrase); falls back to `.my/accounts/<account>/meta/credentials.json` with a clear warning if the keychain is unavailable.
+- Persists session metadata to `.my/accounts/<account>/meta/session.json` and restores sessions automatically on subsequent runs.
+- If cross-signing is enabled and the new device is unverified, offers SAS emoji verification or guidance for recovery-key verification.
+- Supports multi-account: pass `--user-id` to target a specific account, otherwise an interactive prompt appears after showing existing accounts.
+
+**Logout Behavior:**
+- `--user-id` is optional. If omitted:
+  - With a single account: prompts for confirmation and proceeds.
+  - With multiple accounts: shows interactive selection including an "All" option.
+- Asks for user confirmation displaying the user ID(s) before proceeding.
+- Removes stored credentials from OS keychain and deletes local account data from `.my/accounts/<account>/`.
+
+**Examples:**
+```bash
+my login --user-id @alice:example.org
+my logout @alice:example.org
+```
+
+### `status`
+
+Show the status of all logged-in Matrix accounts, including account IDs, homeserver, and session health. Useful for quickly checking which accounts are active and whether credentials are valid.
+
+**Usage:**
+```bash
+my status
+```
+
+**Behavior:**
+- Lists all accounts found in the data directory.
+- For each account, displays:
+  - Matrix user ID
+  - Homeserver
+  - Whether credentials are present and valid (keychain or fallback)
+  - Session health (restorable, needs login, etc.)
+- Exits with nonzero status if no accounts are found or if any account is in an error state.
+
+**Example:**
+```bash
+my status
+```
+
 ### `--render`
 
 Generate windowed reports (year, month, week, day, life) in one or more formats.

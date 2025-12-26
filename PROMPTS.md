@@ -108,3 +108,14 @@
 
 - Check the quality of the code. It must be rust idiomatic and must look like built by a senior rust dev would do. `unsafe` must not be used for example. Update agents.md to keep the standard high.
 - PR the current change following the agents.md guide using a separate branch.
+
+---
+
+## Add login, logout and status commands
+
+- Implement `my login` using the latest `matrix-rust-sdk` with interactive prompts and secure storage.
+- Store credentials (user id, device id, access token, refresh token, DB encryption passphrase) in OS keychain; JSON fallback with warnings.
+- Enable multi-account UX via `--user-id` and interactive selection when omitted.
+- Ensure session restore using `restore_session` with `SessionMeta` and `SessionTokens`.
+- Upgrade to `matrix-sdk = 0.16.0`; refactor login flow to new APIs and validate builds.
+- ... Too many. It lost the context
