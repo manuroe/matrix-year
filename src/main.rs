@@ -1,9 +1,13 @@
 use anyhow::{Context, Result};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+mod login;
+mod logout;
 mod renderer;
+mod secrets;
 mod stats;
+mod status;
 
 // Help text constants
 const HELP_MAIN: &str = "\
@@ -52,6 +56,32 @@ struct Cli {
     /// Show help (global or per topic). Example: my --help render
     #[arg(long, value_name = "TOPIC", num_args = 0..=1, default_missing_value = "")]
     help: Option<String>,
+
+    /// Optional subcommand (e.g., login)
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Log into a Matrix account and securely store credentials
+    Login {
+        /// Matrix user id (e.g. @alice:example.org). If omitted, interactive selection/creation.
+        #[arg(long)]
+        user_id: Option<String>,
+    },
+    /// Log out from a Matrix account and remove stored credentials
+    Logout {
+        /// Matrix user id (e.g. @alice:example.org). If omitted, interactive selection.
+        #[arg(long)]
+        user_id: Option<String>,
+    },
+    /// Show account and credential status
+    Status {
+        /// Matrix user id (e.g. @alice:example.org). If omitted, show all.
+        #[arg(long)]
+        user_id: Option<String>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -67,6 +97,30 @@ fn main() -> Result<()> {
             println!("Unknown help topic: {}", topic);
         }
         return Ok(());
+    }
+
+    // Handle subcommands first
+    if let Some(cmd) = cli.command {
+        match cmd {
+            Commands::Login { user_id } => {
+                // Run interactive login flow
+                tokio::runtime::Runtime::new()
+                    .context("Failed to create Tokio runtime")?
+                    .block_on(login::run(user_id))?;
+                return Ok(());
+            }
+            Commands::Logout { user_id } => {
+                // Run logout flow
+                tokio::runtime::Runtime::new()
+                    .context("Failed to create Tokio runtime")?
+                    .block_on(logout::run(user_id))?;
+                return Ok(());
+            }
+            Commands::Status { user_id } => {
+                status::run(user_id)?;
+                return Ok(());
+            }
+        }
     }
 
     if let Some(render_arg) = cli.render {

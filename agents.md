@@ -372,12 +372,14 @@ Agents **must respect**:
 - Account isolation (no cross-account reads)
 - SQLite as the single source of truth
 - Incremental crawling via sync tokens
+- Session persistence via SDK sessions (access + refresh tokens) and OS keychain-first storage policy
 
 Agents **must not**:
 
 - Store secrets in the database
 - Use global mutable state
 - Block the async runtime
+- Persist plaintext secrets in repo or stats cache; use JSON fallback only when OS keychain is unavailable and warn clearly
 
 When unsure, prefer:
 
@@ -392,6 +394,7 @@ When unsure, prefer:
 - Prefer borrowing over cloning; use `&Path`/`&PathBuf` instead of `String` for filesystem inputs.
 - Keep CLI help and runtime behavior in sync; rely on `clap`-generated help where possible to avoid drift.
 - Run `cargo fmt` and `cargo clippy --all-targets --all-features -D warnings` before merging.
+- Handle authentication errors with context; ensure session restore paths use `restore_session` with `SessionMeta` and `SessionTokens`.
 - Add focused tests when touching stats schema, rendering logic, or CLI parsing; keep example outputs up to date when behavior changes.
 
 ---
@@ -477,12 +480,56 @@ Wait for explicit confirmation before creating the PR.
 
 #### 7. Create Pull Request
 
+
 Only after validation:
 
 - Commit all changes with descriptive message
 - Push to feature branch
-- Create PR with appropriate title and description
+- Create PR with appropriate title and description using the GitHub CLI (`gh`)
 - Reference any related issues
+
+---
+
+### Addressing PR Review Comments
+
+When asked to address PR review comments, agents **must** follow this workflow:
+
+#### 1. Read Comments
+
+Fetch PR comments via the public URL:
+
+```bash
+# Example: https://github.com/manuroe/matrix-year/pull/10
+```
+
+The project is public, so comments are accessible without authentication. Use the `fetch_webpage` tool to retrieve specific discussion threads:
+
+```bash
+# Example discussion URL
+https://github.com/manuroe/matrix-year/pull/10#discussion_r2648705875
+```
+
+#### 2. Apply Fixes
+
+- Address each comment with focused, minimal changes
+- Keep fixes aligned with project coding standards (see Rust quality bar)
+- Run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo test --all-features` after each fix
+- Commit fixes with clear messages referencing the issue
+
+Example commit message:
+```
+refactor(secrets,login): move key deletion function below implementations; deduplicate homeserver parsing; remove dead restore block
+```
+
+#### 3. Mark Comments as Resolved
+
+After pushing fixes:
+
+- Navigate to the PR discussion thread
+- Mark each addressed comment as "Resolved"
+- Reference the fix commit SHA in the resolution (e.g., "Fixed in f4b8fab")
+
+This provides clear traceability and helps reviewers verify fixes efficiently.
 
 ---
 

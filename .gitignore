@@ -1,3 +1,21 @@
-/target
-**/*.rs.bk
+# Local runtime data for `my`
+.my/
+
+# macOS metadata
 .DS_Store
+
+# Rust build artifacts
+/target/
+
+# Cargo local config/cache (not needed in repo)
+/.cargo/
+
+# Editor/IDE settings
+/.vscode/
+/.idea/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
