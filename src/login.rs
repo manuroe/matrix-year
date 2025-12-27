@@ -115,63 +115,48 @@ async fn login_interactive(
     // Always generate a new db_passphrase and overwrite secrets on login
     let passphrase = generate_passphrase();
 
-    // Determine homeserver URL from server input (builder)
-    let hs_candidate = candidate_from_input(server_trim);
+    // Build client using the previously determined homeserver URL
+    let homeserver_url_parsed = Url::parse(&homeserver_url)?;
+    let client = Client::builder()
+        .homeserver_url(homeserver_url_parsed)
+        .sqlite_store(sdk_store_dir.clone(), Some(&passphrase))
+        .build()
+        .await?;
 
-    let builder = Client::builder();
-    let client = if let Ok(url) = Url::parse(&hs_candidate) {
-        builder.homeserver_url(url)
-    } else {
-        // Assume https scheme for server name inputs
-        let url = Url::parse(&format!("https://{}", hs_candidate))?;
-        builder.homeserver_url(url)
-    }
-    .sqlite_store(sdk_store_dir.clone(), Some(&passphrase))
-    .build()
-    .await?;
+    // Perform interactive login using the credentials collected earlier
+    client
+        .matrix_auth()
+        .login_username(&user_input, password.trim())
+        .initial_device_display_name("my-cli")
+        .send()
+        .await
+        .context("login failed")?;
 
-    // Skip session restoration: fresh login overwrites secrets
-    let restored = false;
-
-    let actual_account_id = if !restored {
-        // Perform interactive login using the credentials collected earlier
-        client
-            .matrix_auth()
-            .login_username(&user_input, password.trim())
-            .initial_device_display_name("my-cli")
-            .send()
-            .await
-            .context("login failed")?;
-
-        // Persist session meta and tokens
-        let session = match client.session() {
-            Some(AuthSession::Matrix(s)) => s.clone(),
-            _ => anyhow::bail!("unexpected session type"),
-        };
-
-        let actual_user_id = session.meta.user_id.to_string();
-        let device_id = session.meta.device_id.to_string();
-        let meta = SessionMetaFile {
-            user_id: actual_user_id.clone(),
-            device_id,
-            homeserver: homeserver_url.clone(),
-        };
-        let session_path = account_dir.join("meta/session.json");
-        fs::write(&session_path, serde_json::to_vec(&meta)?)?;
-
-        // Always overwrite secrets with new credentials
-        let secrets = crate::secrets::AccountSecrets {
-            access_token: Some(session.tokens.access_token.clone()),
-            refresh_token: session.tokens.refresh_token.clone(),
-            db_passphrase: Some(passphrase.clone()),
-        };
-        keyring_set_account_secrets(&actual_user_id, &secrets)?;
-        actual_user_id
-    } else {
-        account_id_hint
+    // Persist session meta and tokens
+    let session = match client.session() {
+        Some(AuthSession::Matrix(s)) => s.clone(),
+        _ => anyhow::bail!("unexpected session type"),
     };
 
-    Ok((client, actual_account_id, restored))
+    let actual_user_id = session.meta.user_id.to_string();
+    let device_id = session.meta.device_id.to_string();
+    let meta = SessionMetaFile {
+        user_id: actual_user_id.clone(),
+        device_id,
+        homeserver: homeserver_url.clone(),
+    };
+    let session_path = account_dir.join("meta/session.json");
+    fs::write(&session_path, serde_json::to_vec(&meta)?)?;
+
+    // Always overwrite secrets with new credentials
+    let secrets = crate::secrets::AccountSecrets {
+        access_token: Some(session.tokens.access_token.clone()),
+        refresh_token: session.tokens.refresh_token.clone(),
+        db_passphrase: Some(passphrase.clone()),
+    };
+    keyring_set_account_secrets(&actual_user_id, &secrets)?;
+
+    Ok((client, actual_user_id, false))
 }
 
 async fn initialize_encryption(_client: &Client) -> Result<()> {

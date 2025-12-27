@@ -55,8 +55,6 @@ pub fn keyring_get_account_secrets(account_id: &str) -> Result<AccountSecrets> {
 }
 
 pub fn keyring_set_account_secrets(account_id: &str, secrets: &AccountSecrets) -> Result<()> {
-    use std::io::Write;
-    let _ = std::io::stderr().flush();
     let entry = keyring_entry(account_id, "secrets")?;
     let json = serde_json::to_string(secrets)?;
     entry.set_password(&json).map_err(|e| anyhow!(e))
@@ -85,8 +83,6 @@ impl SecretsCache {
 
     pub fn get_account_secrets(&mut self, account_id: &str) -> Result<&AccountSecrets> {
         if !self.map.contains_key(account_id) {
-            use std::io::Write;
-            let _ = std::io::stderr().flush();
             let secrets = keyring_get_account_secrets(account_id)?;
             self.map.insert(account_id.to_owned(), secrets);
         }
