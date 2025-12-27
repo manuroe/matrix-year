@@ -119,3 +119,8 @@
 - Ensure session restore using `restore_session` with `SessionMeta` and `SessionTokens`.
 - Upgrade to `matrix-sdk = 0.16.0`; refactor login flow to new APIs and validate builds.
 - ... Too many. It lost the context
+
+### Optimize CI for faster builds and reduced redundancy
+> Optimise the CI. I can see at least:
+> - mutualise the env setup and add cache mechanism
+> - mutualise the build
