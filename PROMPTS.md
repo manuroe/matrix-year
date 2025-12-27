@@ -119,3 +119,9 @@
 - Ensure session restore using `restore_session` with `SessionMeta` and `SessionTokens`.
 - Upgrade to `matrix-sdk = 0.16.0`; refactor login flow to new APIs and validate builds.
 - ... Too many. It lost the context
+
+### Optimize CI for faster builds and reduced redundancy
+> Optimise the CI. I can see at least:
+> - share the env setup and add cache mechanism
+> - share the build
+> is there a way to optimise build time? It takes 2 minutes in the CI. It is ridiculous for such a small project

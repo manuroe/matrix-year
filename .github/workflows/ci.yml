@@ -12,12 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install dbus and pkg-config dependencies
-        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-rust-env
         with:
           components: clippy
-      - uses: Swatinem/rust-cache@v2
       - name: Run clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
@@ -26,12 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install dbus and pkg-config dependencies
-        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/setup-rust-env
+        with:
+          nextest: 'true'
       - name: Run tests
-        run: cargo test --all-features
+        run: cargo nextest run --all-features
 
   fmt:
     name: Format
@@ -49,11 +45,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install dbus and pkg-config dependencies
-        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/setup-rust-env
+        with:
+          nextest: 'true'
       - name: Validate example stats against schema
-        run: |
-          # The validation tests will fail if example-stats.json doesn't match the schema
-          cargo test --all-features stats::tests::test_validate_example_stats -- --nocapture
+        run: cargo nextest run --all-features --nocapture stats::tests::test_validate_example_stats
