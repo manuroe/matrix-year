@@ -271,11 +271,13 @@ async fn maybe_verify_device(client: &Client) -> Result<()> {
                         );
                     }
                     let sel = prompt("Device number: ")?;
-                    let idx: usize = sel.trim().parse().unwrap_or(0);
-                    if idx == 0 || idx > trusted.len() {
-                        eprintln!("Invalid selection");
-                        continue;
-                    }
+                    let idx: usize = match sel.trim().parse() {
+                        Ok(n) if n > 0 && n <= trusted.len() => n,
+                        _ => {
+                            eprintln!("Invalid selection");
+                            continue;
+                        }
+                    };
                     let peer = &trusted[idx - 1];
 
                     let req = peer
