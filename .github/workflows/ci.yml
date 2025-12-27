@@ -49,4 +49,4 @@ jobs:
         with:
           nextest: 'true'
       - name: Validate example stats against schema
-        run: cargo nextest run --all-features stats::tests::test_validate_example_stats
+        run: cargo nextest run --all-features --nocapture stats::tests::test_validate_example_stats

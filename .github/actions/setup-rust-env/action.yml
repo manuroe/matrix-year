@@ -1,5 +1,5 @@
 name: Setup Rust Environment
-description: Install system dependencies, Rust toolchain, and setup caching
+description: Install system dependencies, Rust toolchain, setup caching, and optionally install cargo-nextest
 
 inputs:
   components:
