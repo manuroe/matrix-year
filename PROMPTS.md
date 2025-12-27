@@ -122,6 +122,6 @@
 
 ### Optimize CI for faster builds and reduced redundancy
 > Optimise the CI. I can see at least:
-> - mutualise the env setup and add cache mechanism
-> - mutualise the build
+> - share the env setup and add cache mechanism
+> - share the build
 > is there a way to optimise build time? It takes 2 minutes in the CI. It is ridiculous for such a small project
