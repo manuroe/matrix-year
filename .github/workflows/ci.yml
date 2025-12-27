@@ -41,8 +41,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-rust-env
+        with:
+          nextest: 'true'
       - name: Run tests
-        run: cargo test --all-features
+        run: cargo nextest run --all-features
 
   fmt:
     name: Format
@@ -62,7 +64,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-rust-env
+        with:
+          nextest: 'true'
       - name: Validate example stats against schema
-        run: |
-          # The validation tests will fail if example-stats.json doesn't match the schema
-          cargo test --all-features stats::tests::test_validate_example_stats -- --nocapture
+        run: cargo nextest run --all-features stats::tests::test_validate_example_stats

@@ -6,6 +6,10 @@ inputs:
     description: Rust toolchain components to install
     required: false
     default: ''
+  nextest:
+    description: Whether to install cargo-nextest
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -21,3 +25,7 @@ runs:
 
     - name: Setup Rust cache
       uses: Swatinem/rust-cache@v2
+
+    - name: Install cargo-nextest
+      if: inputs.nextest == 'true'
+      uses: taiki-e/install-action@nextest
