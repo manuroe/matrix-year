@@ -1,30 +1,3 @@
-/// Delete all secrets (single-entry and legacy per-secret) for an account from the keychain.
-pub fn keyring_delete_all_secrets(account_id: &str) -> Result<()> {
-    let mut errors = Vec::new();
-    // Try to delete the single-entry blob
-    if let Ok(entry) = keyring_entry(account_id, "secrets") {
-        if let Err(e) = entry.delete_credential() {
-            if !matches!(e, keyring::Error::NoEntry) {
-                errors.push(e);
-            }
-        }
-    }
-    // Try to delete legacy per-secret keys
-    for key in ["db_passphrase", "access_token", "refresh_token"] {
-        if let Ok(entry) = keyring_entry(account_id, key) {
-            if let Err(e) = entry.delete_credential() {
-                if !matches!(e, keyring::Error::NoEntry) {
-                    errors.push(e);
-                }
-            }
-        }
-    }
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(anyhow!("Failed to delete some secrets: {:?}", errors))
-    }
-}
 // src/secrets.rs
 // Keychain secrets management for matrix-year
 
@@ -128,5 +101,33 @@ impl SecretsCache {
     }
     pub fn get_refresh_token(&mut self, account_id: &str) -> Result<Option<String>> {
         Ok(self.get_account_secrets(account_id)?.refresh_token.clone())
+    }
+}
+
+/// Delete all secrets (single-entry and legacy per-secret) for an account from the keychain.
+pub fn keyring_delete_all_secrets(account_id: &str) -> Result<()> {
+    let mut errors = Vec::new();
+    // Try to delete the single-entry blob
+    if let Ok(entry) = keyring_entry(account_id, "secrets") {
+        if let Err(e) = entry.delete_credential() {
+            if !matches!(e, keyring::Error::NoEntry) {
+                errors.push(e);
+            }
+        }
+    }
+    // Try to delete legacy per-secret keys
+    for key in ["db_passphrase", "access_token", "refresh_token"] {
+        if let Ok(entry) = keyring_entry(account_id, key) {
+            if let Err(e) = entry.delete_credential() {
+                if !matches!(e, keyring::Error::NoEntry) {
+                    errors.push(e);
+                }
+            }
+        }
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow!("Failed to delete some secrets: {:?}", errors))
     }
 }

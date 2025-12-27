@@ -105,22 +105,8 @@ async fn login_interactive(
     fs::create_dir_all(&sdk_store_dir)?;
 
     // Determine homeserver URL from server input
-    let hs_candidate = if server_trim.starts_with('@') && server_trim.contains(':') {
-        server_trim
-            .split_once(':')
-            .map(|(_, server)| server)
-            .unwrap_or(server_trim)
-    } else {
-        server_trim
-    };
-
-    let homeserver_url = if let Ok(url) = Url::parse(hs_candidate) {
-        url.to_string()
-    } else {
-        // Assume https scheme for server name inputs
-        let url = Url::parse(&format!("https://{}", hs_candidate))?;
-        url.to_string()
-    };
+    let hs_candidate = candidate_from_input(server_trim);
+    let homeserver_url = homeserver_url_from_candidate(&hs_candidate)?;
 
     // Store homeserver URL for later use (logout, etc)
     let homeserver_txt = account_dir.join("meta/homeserver.txt");
@@ -129,18 +115,11 @@ async fn login_interactive(
     // Always generate a new db_passphrase and overwrite secrets on login
     let passphrase = generate_passphrase();
 
-    // Determine homeserver URL from server input
-    let hs_candidate = if server_trim.starts_with('@') && server_trim.contains(':') {
-        server_trim
-            .split_once(':')
-            .map(|(_, server)| server)
-            .unwrap_or(server_trim)
-    } else {
-        server_trim
-    };
+    // Determine homeserver URL from server input (builder)
+    let hs_candidate = candidate_from_input(server_trim);
 
     let builder = Client::builder();
-    let client = if let Ok(url) = Url::parse(hs_candidate) {
+    let client = if let Ok(url) = Url::parse(&hs_candidate) {
         builder.homeserver_url(url)
     } else {
         // Assume https scheme for server name inputs
@@ -151,16 +130,8 @@ async fn login_interactive(
     .build()
     .await?;
 
-    // Try restoring an existing session first
-    let meta_path = account_dir.join("meta/session.json");
+    // Skip session restoration: fresh login overwrites secrets
     let restored = false;
-    if meta_path.exists() {
-        if let Ok(meta_bytes) = fs::read(&meta_path) {
-            if let Ok(_meta_file) = serde_json::from_slice::<SessionMetaFile>(&meta_bytes) {
-                // No secrets to restore; skip session restoration
-            }
-        }
-    }
 
     let actual_account_id = if !restored {
         // Perform interactive login using the credentials collected earlier
@@ -363,4 +334,24 @@ fn generate_passphrase() -> String {
         .take(64)
         .map(char::from)
         .collect()
+}
+
+fn candidate_from_input(server_trim: &str) -> String {
+    if server_trim.starts_with('@') && server_trim.contains(':') {
+        server_trim
+            .split_once(':')
+            .map(|(_, server)| server.to_owned())
+            .unwrap_or_else(|| server_trim.to_owned())
+    } else {
+        server_trim.to_owned()
+    }
+}
+
+fn homeserver_url_from_candidate(candidate: &str) -> Result<String> {
+    if Url::parse(candidate).is_ok() {
+        Ok(candidate.to_owned())
+    } else {
+        let url = Url::parse(&format!("https://{}", candidate))?;
+        Ok(url.to_string())
+    }
 }
