@@ -36,22 +36,8 @@ impl AccountSecretsStore {
     /// Create a new secrets store for an account
     ///
     /// Loads existing credentials if available, or initializes empty store.
-    /// Logs a warning if credentials file exists but cannot be loaded.
     pub fn new(account_id: &str) -> Result<Self> {
-        let secrets = match load_secrets_from_file(account_id) {
-            Ok(s) => s,
-            Err(e) => {
-                let path = credentials_file_path(account_id);
-                if path.exists() {
-                    eprintln!(
-                        "Warning: credentials file exists at {} but could not be loaded: {}",
-                        path.display(),
-                        e
-                    );
-                }
-                AccountSecrets::default()
-            }
-        };
+        let secrets = load_secrets_from_file(account_id).unwrap_or_default();
         Ok(Self {
             account_id: account_id.to_owned(),
             secrets,
@@ -105,7 +91,7 @@ impl AccountSecretsStore {
 
 fn credentials_file_path(account_id: &str) -> PathBuf {
     let data_dir = std::env::var("MY_DATA_DIR").unwrap_or_else(|_| ".my".to_string());
-    let account_dirname = crate::login::account_id_to_dirname(account_id);
+    let account_dirname = account_id.replace(':', "_");
     Path::new(&data_dir)
         .join("accounts")
         .join(account_dirname)
@@ -134,30 +120,18 @@ fn save_secrets_to_file(account_id: &str, secrets: &AccountSecrets) -> Result<()
     // Serialize credentials
     let json = serde_json::to_string_pretty(secrets).context("Failed to serialize credentials")?;
 
-    // Write to file with restrictive permissions from the start to avoid race condition
+    // Write to file
+    fs::write(&path, json)
+        .with_context(|| format!("Failed to write credentials to {}", path.display()))?;
+
+    // Set restrictive permissions (0600 - owner read/write only)
     #[cfg(unix)]
     {
-        use std::fs::OpenOptions;
-        use std::io::Write;
-        use std::os::unix::fs::OpenOptionsExt;
-
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(0o600) // Set permissions on creation
-            .open(&path)
-            .with_context(|| format!("Failed to create credentials file at {}", path.display()))?;
-
-        file.write_all(json.as_bytes())
-            .with_context(|| format!("Failed to write credentials to {}", path.display()))?;
-    }
-
-    #[cfg(not(unix))]
-    {
-        // On non-Unix systems, use default fs::write
-        fs::write(&path, json)
-            .with_context(|| format!("Failed to write credentials to {}", path.display()))?;
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&path)?.permissions();
+        perms.set_mode(0o600);
+        fs::set_permissions(&path, perms)
+            .with_context(|| format!("Failed to set permissions on {}", path.display()))?;
     }
 
     Ok(())
@@ -326,7 +300,7 @@ mod tests {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, "not valid json").unwrap();
 
-        // Should log warning but not fail
+        // Should return empty store (graceful handling)
         let store = AccountSecretsStore::new(&account_id).unwrap();
 
         // Should have empty credentials

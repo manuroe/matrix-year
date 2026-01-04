@@ -1,6 +1,9 @@
 # Local runtime data for `my`
 .my/
 
+# Environment files with credentials
+.env
+
 # macOS metadata
 .DS_Store
 

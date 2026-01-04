@@ -1,0 +1,51 @@
+# Integration test workflow for login with cross-signing
+#
+# This workflow runs the integration test that validates:
+# - Login to Matrix account
+# - Cross-signing verification via recovery key
+# - Session management
+#
+# Required GitHub Secrets:
+# - MY_TEST_HOMESERVER: Matrix homeserver URL (e.g., https://matrix.org)
+# - MY_TEST_USER_ID: Full Matrix user ID (e.g., @testuser:example.org)
+# - MY_TEST_PASSWORD: Account password
+# - MY_TEST_RECOVERY_KEY: Recovery key for cross-signing verification
+
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Build project
+        run: cargo build --release
+
+      - name: Run integration test
+        env:
+          MY_TEST_HOMESERVER: ${{ secrets.MY_TEST_HOMESERVER }}
+          MY_TEST_USER_ID: ${{ secrets.MY_TEST_USER_ID }}
+          MY_TEST_PASSWORD: ${{ secrets.MY_TEST_PASSWORD }}
+          MY_TEST_RECOVERY_KEY: ${{ secrets.MY_TEST_RECOVERY_KEY }}
+        run: cargo test --test integration_login -- --ignored --nocapture
+
+      - name: Cleanup test artifacts
+        if: always()
+        run: |
+          rm -rf .my-test/
+          rm -f *-session.json

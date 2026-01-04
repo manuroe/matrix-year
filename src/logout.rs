@@ -7,6 +7,7 @@ use matrix_sdk::SessionMeta;
 use matrix_sdk::{AuthSession, Client};
 use std::fs;
 use std::path::Path;
+use url::Url;
 
 use crate::login::{account_id_to_dirname, prompt, resolve_data_root, SessionMetaFile};
 
@@ -79,40 +80,43 @@ pub async fn run(user_id_flag: Option<String>) -> Result<()> {
 
     // Logout from homeserver and remove local data for each account
     for account_id in &accounts_to_remove {
-        let account_dir = accounts_root.join(account_id_to_dirname(account_id));
-
-        // Try to logout from the homeserver first
-        if let Err(e) = logout_from_homeserver(account_id, &account_dir).await {
-            eprintln!(
-                "Warning: Failed to logout from homeserver for {}:",
-                account_id
-            );
-            eprintln!("  → {:#}", e);
-            eprintln!("Continuing with local cleanup...");
-        }
-
-        // Remove credentials using the abstraction
-        if let Ok(mut secrets_store) = crate::secrets::AccountSecretsStore::new(account_id) {
-            if let Err(e) = secrets_store.delete_all() {
-                eprintln!(
-                    "[warn] Failed to delete credentials for {}: {:#}",
-                    account_id, e
-                );
-            }
-        } else {
-            eprintln!(
-                "[warn] Could not access credentials store for {}, continuing with cleanup",
-                account_id
-            );
-        }
-
-        // Remove account directory (includes SDK database and all local data)
-        if account_dir.exists() {
-            fs::remove_dir_all(&account_dir)
-                .with_context(|| format!("Failed to remove account data for {}", account_id))?;
-        }
-
+        logout(accounts_root.clone(), account_id)
+            .await
+            .with_context(|| format!("Failed to logout from {}", account_id))?;
         eprintln!("Logged out: {}", account_id);
+    }
+
+    Ok(())
+}
+
+/// Logout from a Matrix account and remove local data
+/// Used by both the CLI and integration tests
+pub async fn logout(accounts_root: std::path::PathBuf, account_id: &str) -> Result<()> {
+    let account_dir = accounts_root.join(account_id_to_dirname(account_id));
+
+    // Try to logout from the homeserver first
+    if let Err(e) = logout_from_homeserver(account_id, &account_dir).await {
+        eprintln!(
+            "Warning: Failed to logout from homeserver for {}:",
+            account_id
+        );
+        eprintln!("  → {:#}", e);
+        eprintln!("Continuing with local cleanup...");
+    }
+
+    // Remove credentials using the abstraction
+    let mut secrets_store = crate::secrets::AccountSecretsStore::new(account_id)?;
+    if let Err(e) = secrets_store.delete_all() {
+        eprintln!(
+            "[warn] Failed to delete credentials for {}: {:#}",
+            account_id, e
+        );
+    }
+
+    // Remove account directory (includes SDK database and all local data)
+    if account_dir.exists() {
+        fs::remove_dir_all(&account_dir)
+            .with_context(|| format!("Failed to remove account data for {}", account_id))?;
     }
 
     Ok(())
@@ -130,9 +134,9 @@ async fn logout_from_homeserver(account_id: &str, account_dir: &Path) -> Result<
 
     // Read homeserver URL from session.json
     let meta_bytes = std::fs::read(&meta_path)?;
-    let meta_file: crate::login::SessionMetaFile = serde_json::from_slice(&meta_bytes)?;
+    let meta_file: SessionMetaFile = serde_json::from_slice(&meta_bytes)?;
     let url =
-        url::Url::parse(&meta_file.homeserver).context("Invalid homeserver URL in session.json")?;
+        Url::parse(&meta_file.homeserver).context("Invalid homeserver URL in session.json")?;
 
     // Build client with stored passphrase and homeserver URL
     let client = Client::builder()

@@ -53,6 +53,9 @@ pub async fn run(user_id_flag: Option<String>) -> Result<()> {
     // Initialize encryption and cross-signing
     initialize_encryption(&client).await?;
 
+    // Sync encryption state (cross-signing keys, device lists, verification status, etc.)
+    crate::sdk::sync_encryption_state(&client).await?;
+
     // If cross-signing exists but device is not verified, offer verification UX
     maybe_verify_device(&client).await?;
 
@@ -88,22 +91,42 @@ async fn login_interactive(
 
     let password = prompt_password("Password: ")?;
 
+    login_with_credentials(server_trim, &user_input, &password, accounts_root).await
+}
+
+/// Non-interactive login function for testing.
+/// Takes credentials as parameters instead of prompting.
+pub async fn login_with_credentials(
+    server: &str,
+    user_input: &str,
+    password: &str,
+    accounts_root: &Path,
+) -> Result<(Client, String, bool)> {
     // Extract actual user ID if it's a full ID, otherwise we'll get it after login
     let account_id_hint = if user_input.starts_with('@') && user_input.contains(':') {
-        user_input.clone()
+        user_input.to_string()
     } else {
         // We'll determine the full user ID after login
-        format!("@{}:{}", user_input, server_trim)
+        format!("@{}:{}", user_input, server)
     };
 
     let account_dir = accounts_root.join(account_id_to_dirname(&account_id_hint));
     fs::create_dir_all(account_dir.join("meta"))?;
 
     let sdk_store_dir = account_dir.join("sdk");
+    // Remove old SDK database if it exists to ensure a fresh start with new passphrase
+    if sdk_store_dir.exists() {
+        fs::remove_dir_all(&sdk_store_dir).with_context(|| {
+            format!(
+                "failed to remove old SDK database at {}",
+                sdk_store_dir.display()
+            )
+        })?;
+    }
     fs::create_dir_all(&sdk_store_dir)?;
 
     // Determine homeserver URL from server input
-    let hs_candidate = candidate_from_input(server_trim);
+    let hs_candidate = candidate_from_input(server);
     let homeserver_url = homeserver_url_from_candidate(&hs_candidate)?;
 
     // Always generate a new db_passphrase and overwrite secrets on login
@@ -120,7 +143,7 @@ async fn login_interactive(
     // Perform interactive login using the credentials collected earlier
     client
         .matrix_auth()
-        .login_username(&user_input, password.trim())
+        .login_username(user_input, password.trim())
         .initial_device_display_name("my-cli")
         .send()
         .await
@@ -142,7 +165,7 @@ async fn login_interactive(
     let session_path = account_dir.join("meta/session.json");
     fs::write(&session_path, serde_json::to_vec(&meta)?)?;
 
-    // Store credentials using the new abstraction
+    // Store credentials in secure secrets store
     let mut secrets_store = crate::secrets::AccountSecretsStore::new(&actual_user_id)?;
     secrets_store.store_credentials(
         Some(passphrase.clone()),
@@ -150,41 +173,15 @@ async fn login_interactive(
         session.tokens.refresh_token.clone(),
     )?;
 
-    // Verify directory consistency: ensure actual_user_id matches account_id_hint
-    // If server returned a different format, we need to move all session data
-    let expected_account_dir = accounts_root.join(account_id_to_dirname(&actual_user_id));
-    if account_dir != expected_account_dir {
-        eprintln!(
-            "Warning: Server returned user ID '{}' which differs from hint '{}'. Moving session data...",
-            actual_user_id, account_id_hint
-        );
-        // Move the entire account directory (including sdk/, meta/, etc.) to the expected location
-        if !expected_account_dir.exists() {
-            fs::rename(&account_dir, &expected_account_dir).with_context(|| {
-                format!(
-                    "Failed to move account directory from {} to {}",
-                    account_dir.display(),
-                    expected_account_dir.display()
-                )
-            })?;
-        } else {
-            eprintln!(
-                "Warning: Target account directory {} already exists; not moving {}.",
-                expected_account_dir.display(),
-                account_dir.display()
-            );
-        }
-    }
-
     Ok((client, actual_user_id, false))
 }
 
-async fn initialize_encryption(_client: &Client) -> Result<()> {
+pub async fn initialize_encryption(_client: &Client) -> Result<()> {
     // The SDK initializes encryption automatically after login/restore.
     Ok(())
 }
 
-async fn maybe_verify_device(client: &Client) -> Result<()> {
+pub async fn maybe_verify_device(client: &Client) -> Result<()> {
     // Check cross-signing and device verification status
     let user_id = client
         .user_id()
@@ -201,115 +198,186 @@ async fn maybe_verify_device(client: &Client) -> Result<()> {
         .map(|d| d.is_verified())
         .unwrap_or(false);
 
+    // Check if the account has cross-signing set up by fetching the user identity
+    // This queries the server for the user's cross-signing keys
+    let user_identity = client
+        .encryption()
+        .get_user_identity(&user_id)
+        .await
+        .context("failed to get user identity")?;
+
+    let account_has_cross_signing = user_identity.is_some();
+
+    // Also check if secret storage (recovery) is available
+    let secret_storage_available = client
+        .encryption()
+        .secret_storage()
+        .is_enabled()
+        .await
+        .unwrap_or(false);
+
+    // Also check local cross-signing status
     let xsign = client
         .encryption()
         .cross_signing_status()
         .await
         .context("failed to get cross-signing status")?;
 
-    let xsign_exists = xsign.has_master && xsign.has_self_signing && xsign.has_user_signing;
-    if xsign_exists && !is_verified {
-        eprintln!("Your account uses cross-signing. This new device must be verified.");
-        eprintln!("Choose verification method: (1) Emoji (SAS)  (2) Recovery key");
+    let xsign_local = xsign.has_master && xsign.has_self_signing && xsign.has_user_signing;
+
+    eprintln!("Cross-signing status:");
+    eprintln!("  Account has cross-signing: {}", account_has_cross_signing);
+    eprintln!("  Secret storage enabled: {}", secret_storage_available);
+    eprintln!(
+        "  Local keys available: master={}, self={}, user={}",
+        xsign.has_master, xsign.has_self_signing, xsign.has_user_signing
+    );
+    eprintln!("  Device verified: {}", is_verified);
+
+    // If secret storage is enabled, that means cross-signing is set up and we should prompt
+    if secret_storage_available && !xsign_local {
         loop {
-            let choice = prompt("Method [1/2]: ")?;
-            match choice.trim() {
-                "1" => {
-                    // Emoji verification: pick a verified device to verify against
-                    let devices = client
-                        .encryption()
-                        .get_user_devices(&user_id)
-                        .await
-                        .context("failed to list user devices")?;
+            eprintln!(
+                "\nYour account has cross-signing enabled. This new device must be verified."
+            );
 
-                    let trusted: Vec<_> = devices
-                        .devices()
-                        .filter(|d| {
-                            own_device
-                                .as_ref()
-                                .map(|od| d.device_id() != od.device_id())
-                                .unwrap_or(true)
-                                && d.is_verified()
-                        })
-                        .collect();
+            let options = vec![
+                "Emoji verification - Compare emojis with another trusted device",
+                "Recovery key",
+                "Skip verification (⚠️  other Matrix clients may complain about unverified devices)",
+            ];
 
-                    if trusted.is_empty() {
-                        eprintln!("No other verified device found. Please choose recovery key method or verify from another device.");
-                        continue;
-                    }
+            let choice = inquire::Select::new("Choose verification method:", options).prompt()?;
 
-                    eprintln!("Select a device to verify with:");
-                    for (i, d) in trusted.iter().enumerate() {
-                        eprintln!(
-                            "  {}: {} (verified)",
-                            i + 1,
-                            d.display_name().unwrap_or("(unknown)")
-                        );
-                    }
-                    let sel = prompt("Device number: ")?;
-                    let idx: usize = match sel.trim().parse() {
-                        Ok(n) if n > 0 && n <= trusted.len() => n,
-                        _ => {
-                            eprintln!("Invalid selection");
+            match choice {
+                "Emoji verification - Compare emojis with another trusted device" => {
+                        // Emoji verification: pick a verified device to verify against
+                        let devices = client
+                            .encryption()
+                            .get_user_devices(&user_id)
+                            .await
+                            .context("failed to list user devices")?;
+
+                        let trusted: Vec<_> = devices
+                            .devices()
+                            .filter(|d| {
+                                own_device
+                                    .as_ref()
+                                    .map(|od| d.device_id() != od.device_id())
+                                    .unwrap_or(true)
+                                    && d.is_verified()
+                            })
+                            .collect();
+
+                        if trusted.is_empty() {
+                            eprintln!("No other verified device found. Please choose recovery key method or verify from another device.");
                             continue;
                         }
-                    };
-                    let peer = &trusted[idx - 1];
 
-                    let req = peer
-                        .request_verification()
-                        .await
-                        .context("failed to request verification")?;
-
-                    let sas = req
-                        .start_sas()
-                        .await
-                        .context("failed to start SAS verification")?;
-
-                    if let Some(emojis) = sas.as_ref().and_then(|s| s.emoji()) {
-                        eprintln!("Compare these emojis on both devices:");
-                        let line = emojis
+                        eprintln!("\nSelect a trusted device to verify with:");
+                        let device_options: Vec<_> = trusted
                             .iter()
-                            .map(|e| e.symbol.to_string())
-                            .collect::<Vec<_>>()
-                            .join(" ");
-                        eprintln!("{}", line);
-                    } else {
-                        eprintln!(
-                            "SAS is initializing; confirm the verification on the other device."
-                        );
-                    }
+                            .map(|d| d.display_name().unwrap_or("(unknown)").to_string())
+                            .collect();
 
-                    let confirm = prompt("Do they match? [y/N]: ")?;
-                    if matches!(confirm.trim(), "y" | "Y") {
-                        if let Some(s) = &sas {
-                            s.confirm().await.context("failed to confirm SAS")?;
+                        let device_choice = inquire::Select::new("Device:", device_options)
+                            .prompt()?;
+
+                        let peer = trusted.iter()
+                            .find(|d| d.display_name().unwrap_or("(unknown)") == device_choice)
+                            .context("Device not found")?;
+
+                        let req = peer
+                            .request_verification()
+                            .await
+                            .context("failed to request verification")?;
+
+                        let sas = req
+                            .start_sas()
+                            .await
+                            .context("failed to start SAS verification")?;
+
+                        if let Some(emojis) = sas.as_ref().and_then(|s| s.emoji()) {
+                            eprintln!("\n🔐 Compare these emojis on both devices:");
+                            let line = emojis
+                                .iter()
+                                .map(|e| e.symbol.to_string())
+                                .collect::<Vec<_>>()
+                                .join(" ");
+                            eprintln!("   {}\n", line);
+                        } else {
+                            eprintln!(
+                                "\nSAS is initializing; confirm the verification on the other device."
+                            );
                         }
-                        eprintln!("Device verified via SAS.");
-                    } else {
-                        if let Some(s) = &sas {
-                            s.cancel().await.ok();
+
+                        let confirm = prompt("Do they match? [y/N]: ")?;
+                        if matches!(confirm.trim(), "y" | "Y") {
+                            if let Some(s) = &sas {
+                                s.confirm().await.context("failed to confirm SAS")?;
+                            }
+                            eprintln!("✓ Device verified via SAS.");
+                            break;
+                        } else {
+                            if let Some(s) = &sas {
+                                s.cancel().await.ok();
+                            }
+                            eprintln!("SAS verification cancelled.");
                         }
-                        eprintln!("SAS verification cancelled.");
                     }
-                    break;
+                    "Recovery key" => {
+                        let key = prompt("\nEnter your recovery key: ")?;
+    verify_with_recovery_key(client, key.trim()).await?;
+                        break;
+                    }
+                    "Skip verification (⚠️  other Matrix clients may complain about unverified devices)" => {
+                        eprintln!("\n⚠️  WARNING: Device will be unverified");
+                        eprintln!("Other Matrix clients may flag this device as unverified, which could be");
+                        eprintln!("perceived as a security risk. See:");
+                        eprintln!("  https://element.io/blog/verifying-your-devices-is-becoming-mandatory-2");
+                        eprintln!("\nYou can verify this device later by running:");
+                        eprintln!("  my status");
+                        let confirm = prompt("\nProceed without verification? [y/N]: ")?;
+                        if matches!(confirm.trim(), "y" | "Y") {
+                            eprintln!("Skipped device verification.");
+                            break;
+                        } else {
+                            eprintln!("Returning to verification method selection...");
+                        }
+                    }
+                    _ => {}
                 }
-                "2" => {
-                    eprintln!("Enter your recovery key (from secret storage/backup):");
-                    let key = prompt("Recovery key: ")?;
-                    // Recovery key flow differs between SDK versions; if unsupported here,
-                    // instruct the user to verify this device from another verified device
-                    // by entering the recovery key there.
-                    eprintln!("If prompted, enter this recovery key on a verified device to trust this device.");
-                    eprintln!("Recovery key: {}", key.trim());
-                    break;
-                }
-                _ => {
-                    eprintln!("Please enter 1 or 2.");
-                }
-            }
         }
     }
+
+    Ok(())
+}
+
+/// Verify device using a recovery key (non-interactive for testing).
+/// This unlocks secret storage and imports cross-signing keys.
+pub async fn verify_with_recovery_key(client: &Client, recovery_key: &str) -> Result<()> {
+    eprintln!("Unlocking secret storage with recovery key...");
+
+    // Open secret storage using the recovery key
+    let secret_store = client
+        .encryption()
+        .secret_storage()
+        .open_secret_store(recovery_key)
+        .await
+        .context("Failed to unlock secret storage. Please check your recovery key.")?;
+
+    // Import cross-signing keys from secret storage
+    secret_store
+        .import_secrets()
+        .await
+        .context("Failed to import cross-signing keys from secret storage")?;
+
+    eprintln!("✓ Device verified using recovery key");
+
+    // Run a minimal sync to update verification_state
+    eprintln!("Syncing encryption state...");
+    crate::sdk::sync_encryption_state(client).await?;
+    eprintln!("✓ Encryption state synced");
 
     Ok(())
 }
