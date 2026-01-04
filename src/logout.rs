@@ -92,12 +92,15 @@ pub async fn run(user_id_flag: Option<String>) -> Result<()> {
         }
 
         // Remove credentials using the abstraction
-        let mut secrets_store = crate::secrets::AccountSecretsStore::new(account_id)?;
-        if let Err(e) = secrets_store.delete_all() {
-            eprintln!(
-                "[warn] Failed to delete credentials for {}: {:#}",
-                account_id, e
-            );
+        if let Ok(mut secrets_store) = crate::secrets::AccountSecretsStore::new(account_id) {
+            if let Err(e) = secrets_store.delete_all() {
+                eprintln!(
+                    "[warn] Failed to delete credentials for {}: {:#}",
+                    account_id, e
+                );
+            }
+        } else {
+            eprintln!("[warn] Could not access credentials store for {}, continuing with cleanup", account_id);
         }
 
         // Remove account directory (includes SDK database and all local data)
