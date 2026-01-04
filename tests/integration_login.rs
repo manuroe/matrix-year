@@ -57,7 +57,14 @@ async fn test_login_with_cross_signing() -> Result<()> {
     let expected_user_id = if user_id.starts_with('@') && user_id.contains(':') {
         user_id.clone()
     } else {
-        format!("@{}:matrix.org", user_id)
+        // Extract domain from homeserver URL
+        let domain = homeserver
+            .trim_start_matches("https://")
+            .trim_start_matches("http://")
+            .split('/')
+            .next()
+            .unwrap_or("matrix.org");
+        format!("@{}:{}", user_id, domain)
     };
     assert_eq!(expected_user_id, actual_user_id, "User ID mismatch");
 
