@@ -9,6 +9,14 @@ use std::fs;
 use std::path::Path;
 use url::Url;
 
+/// Minimum number of sync iterations required to ensure encryption state
+/// (including cross-signing verification status) is fully updated after
+/// recovery key verification or other encryption-related operations.
+///
+/// Testing showed that 3 iterations reliably synchronizes the verification
+/// state, while fewer iterations may leave the state incomplete.
+const MIN_SYNC_ITERATIONS_FOR_VERIFICATION: usize = 3;
+
 /// Restore a Matrix SDK Client for a given account.
 ///
 /// This loads the session metadata and credentials, then recreates the client
@@ -94,8 +102,8 @@ pub async fn sync_encryption_state(client: &Client) -> Result<()> {
     let stream = sliding_sync.sync();
     futures_util::pin_mut!(stream);
 
-    // Run 3 sync iterations to ensure verification_state updates
-    for _ in 0..3 {
+    // Run minimal sync iterations to ensure verification_state updates
+    for _ in 0..MIN_SYNC_ITERATIONS_FOR_VERIFICATION {
         if let Some(result) = stream.next().await {
             result?;
         } else {
