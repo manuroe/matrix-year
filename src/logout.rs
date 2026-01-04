@@ -105,12 +105,22 @@ pub async fn logout(accounts_root: std::path::PathBuf, account_id: &str) -> Resu
     }
 
     // Remove credentials using the abstraction
-    let mut secrets_store = crate::secrets::AccountSecretsStore::new(account_id)?;
-    if let Err(e) = secrets_store.delete_all() {
-        eprintln!(
-            "[warn] Failed to delete credentials for {}: {:#}",
-            account_id, e
-        );
+    match crate::secrets::AccountSecretsStore::new(account_id) {
+        Ok(mut secrets_store) => {
+            if let Err(e) = secrets_store.delete_all() {
+                eprintln!(
+                    "[warn] Failed to delete credentials for {}: {:#}",
+                    account_id, e
+                );
+            }
+        }
+        Err(e) => {
+            eprintln!(
+                "[warn] Failed to initialize credentials store for {}: {:#}",
+                account_id, e
+            );
+            eprintln!("[warn] Skipping credentials deletion and continuing logout...");
+        }
     }
 
     // Remove account directory (includes SDK database and all local data)
