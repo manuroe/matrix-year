@@ -333,7 +333,7 @@ pub async fn maybe_verify_device(client: &Client) -> Result<()> {
                     }
                     "Recovery key" => {
                         let key = prompt("\nEnter your recovery key: ")?;
-    verify_with_recovery_key(client, key.trim()).await?;
+                        verify_with_recovery_key(client, key.trim()).await?;
                         break;
                     }
                     "Skip verification (⚠️  other Matrix clients may complain about unverified devices)" => {
