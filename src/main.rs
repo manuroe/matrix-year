@@ -5,6 +5,7 @@ use std::path::PathBuf;
 mod login;
 mod logout;
 mod renderer;
+mod sdk;
 mod secrets;
 mod stats;
 mod status;
@@ -117,7 +118,10 @@ fn main() -> Result<()> {
                 return Ok(());
             }
             Commands::Status { user_id } => {
-                status::run(user_id)?;
+                // Run status (needs async for cross-signing check)
+                tokio::runtime::Runtime::new()
+                    .context("Failed to create Tokio runtime")?
+                    .block_on(status::run(user_id))?;
                 return Ok(());
             }
         }

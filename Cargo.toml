@@ -21,3 +21,7 @@ matrix-sdk = { version = "0.16.0", features = ["e2e-encryption", "sqlite", "sso-
 rand = "0.8"
 inquire = "0.7"
 whoami = "1"
+futures-util = "0.3"
+
+[dev-dependencies]
+tempfile = "3"

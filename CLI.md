@@ -117,3 +117,21 @@ cargo run -- --render md --json-stats examples/example-stats.json
 ```
 
 The `--` separator tells Cargo to pass all following arguments to the `my` binary.
+
+### Integration Tests
+
+The project includes integration tests that validate the login and cross-signing flow. To run them:
+
+**Setup credentials:**
+
+1. Copy the template: `cp .env.template .env`
+2. Edit `.env` with your test account credentials
+3. Load variables: `source .env`
+
+**Run integration tests:**
+
+```bash
+(set -a && source .env && set +a && cargo test --test integration_login -- --ignored --nocapture)
+```
+
+**Note:** Never commit the `.env` file as it contains sensitive credentials. Only `.env.template` should be committed.

@@ -152,3 +152,12 @@
 
 > remove
 
+## PR: Implement session verification using recovery key
+
+> I updated CLI.md to make it clearer that, by device verification of the new login, we mean cross-signing of the new session.
+
+1. Verify it makes sense
+2. Update other docs to clarify that we want to cross-sign the new logged in session
+3. Update the code to make it. We will start first with the recovery key path. SAS emoji will be managed after
+
+> ... Too many. It lost the context

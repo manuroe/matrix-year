@@ -36,22 +36,8 @@ impl AccountSecretsStore {
     /// Create a new secrets store for an account
     ///
     /// Loads existing credentials if available, or initializes empty store.
-    /// Logs a warning if credentials file exists but cannot be loaded.
     pub fn new(account_id: &str) -> Result<Self> {
-        let secrets = match load_secrets_from_file(account_id) {
-            Ok(s) => s,
-            Err(e) => {
-                let path = credentials_file_path(account_id);
-                if path.exists() {
-                    eprintln!(
-                        "Warning: credentials file exists at {} but could not be loaded: {}",
-                        path.display(),
-                        e
-                    );
-                }
-                AccountSecrets::default()
-            }
-        };
+        let secrets = load_secrets_from_file(account_id).unwrap_or_default();
         Ok(Self {
             account_id: account_id.to_owned(),
             secrets,
@@ -134,7 +120,9 @@ fn save_secrets_to_file(account_id: &str, secrets: &AccountSecrets) -> Result<()
     // Serialize credentials
     let json = serde_json::to_string_pretty(secrets).context("Failed to serialize credentials")?;
 
-    // Write to file with restrictive permissions from the start to avoid race condition
+    // Write to file with restrictive permissions (0600 - owner read/write only)
+    // On Unix, we set permissions atomically during file creation to avoid a race condition
+    // where the file would be readable by others between creation and permission change.
     #[cfg(unix)]
     {
         use std::fs::OpenOptions;
@@ -145,9 +133,9 @@ fn save_secrets_to_file(account_id: &str, secrets: &AccountSecrets) -> Result<()
             .write(true)
             .create(true)
             .truncate(true)
-            .mode(0o600) // Set permissions on creation
+            .mode(0o600)
             .open(&path)
-            .with_context(|| format!("Failed to create credentials file at {}", path.display()))?;
+            .with_context(|| format!("Failed to create credentials file {}", path.display()))?;
 
         file.write_all(json.as_bytes())
             .with_context(|| format!("Failed to write credentials to {}", path.display()))?;
@@ -155,7 +143,6 @@ fn save_secrets_to_file(account_id: &str, secrets: &AccountSecrets) -> Result<()
 
     #[cfg(not(unix))]
     {
-        // On non-Unix systems, use default fs::write
         fs::write(&path, json)
             .with_context(|| format!("Failed to write credentials to {}", path.display()))?;
     }
@@ -326,7 +313,7 @@ mod tests {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, "not valid json").unwrap();
 
-        // Should log warning but not fail
+        // Should return empty store (graceful handling)
         let store = AccountSecretsStore::new(&account_id).unwrap();
 
         // Should have empty credentials

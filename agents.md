@@ -69,9 +69,8 @@ By default, `my` stores data **relative to the directory where the command is ex
 
 Resolution order:
 
-1. `--data <path>` if provided
-2. `MY_DATA_DIR` environment variable
-3. Current working directory (`./.my/`)
+1. `MY_DATA_DIR` environment variable
+2. Current working directory (`./.my/`)
 
 This makes the tool:
 
@@ -293,6 +292,15 @@ All configuration is provided via **command-line arguments**. No configuration f
 my login @alice:example.org
 ```
 
+Login process:
+- Authenticates with homeserver via username/password
+- Stores session tokens and metadata locally
+- Initializes end-to-end encryption automatically
+- If cross-signing is enabled on the account, prompts to cross-sign the new session via:
+  - **SAS emoji verification**: Compare emojis with another verified device
+  - **Recovery key/passphrase**: Unlock secret storage to import cross-signing keys
+- Recovery credentials are transient (used only during login, never stored)
+
 **Logout from an account:**
 
 ```bash
@@ -375,6 +383,7 @@ Agents **must respect**:
 - Incremental crawling via sync tokens
 - Session persistence via SDK sessions (access + refresh tokens)
 - Credential storage abstraction via `AccountSecretsStore`
+- Cross-signing verification flow during login (SAS emoji or recovery key)
 
 Agents **must not**:
 
@@ -382,6 +391,7 @@ Agents **must not**:
 - Use global mutable state
 - Block the async runtime
 - Access credential storage directly; use `AccountSecretsStore` API only
+- Store recovery keys or passphrases (they are transient, used only during session cross-signing)
 
 When unsure, prefer:
 
@@ -398,6 +408,34 @@ When unsure, prefer:
 - Run `cargo fmt` and `cargo clippy --all-targets --all-features -D warnings` before merging.
 - Handle authentication errors with context; ensure session restore paths use `restore_session` with `SessionMeta` and `SessionTokens`.
 - Add focused tests when touching stats schema, rendering logic, or CLI parsing; keep example outputs up to date when behavior changes.
+
+### Integration Tests
+
+The project includes integration tests that require live Matrix account credentials to verify the full login, encryption, and cross-signing flows.
+
+**Test isolation:**
+- Tests use the `MY_DATA_DIR` environment variable to store data in a temporary directory
+- This prevents pollution of the default `~/.my` directory
+- Each test run creates a fresh temporary directory that is automatically cleaned up
+
+**Running the integration test locally:**
+
+1. Set up credentials in `.env`:
+   ```bash
+   cp .env.template .env
+   # Edit .env with your test account credentials
+   ```
+
+2. Run the integration test:
+   ```bash
+   (set -a && source .env && set +a && cargo test --test integration_login -- --ignored --nocapture 2>&1)
+   ```
+
+   This command:
+   - Loads credentials from `.env` without exposing them in shell history
+   - Runs the ignored integration test with output
+   - Tests the complete flow: login → encryption → recovery key verification → status checks
+   - Uses a temporary directory for all data (via `MY_DATA_DIR` set by the test)
 
 ---
 
