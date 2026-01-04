@@ -115,13 +115,14 @@ The SDK:
 - Handles end-to-end encryption automatically
 - Manages sync state and event persistence
 
-Secrets (access tokens, database encryption keys) **must be stored securely** using platform-appropriate facilities:
+**Credentials storage** (access tokens, refresh tokens, database encryption keys) is managed via the `AccountSecretsStore` abstraction in `src/secrets.rs`. 
 
-- **macOS:** Keychain
-- **Linux:** Secret Service API (libsecret) or similar
-- **Windows:** Credential Manager
+Current implementation:
+- Stores credentials in local JSON files at `accounts/{account}/meta/credentials.json`
+- File permissions restricted to owner-only (0600 on Unix)
+- Storage mechanism is completely encapsulated in `secrets.rs`
 
-Agents **must not** store secrets in plaintext or in the stats database.
+The abstraction allows switching storage backends (keychain, encrypted files, etc.) without changing other modules.
 
 ---
 
@@ -372,14 +373,15 @@ Agents **must respect**:
 - Account isolation (no cross-account reads)
 - SQLite as the single source of truth
 - Incremental crawling via sync tokens
-- Session persistence via SDK sessions (access + refresh tokens) and OS keychain-first storage policy
+- Session persistence via SDK sessions (access + refresh tokens)
+- Credential storage abstraction via `AccountSecretsStore`
 
 Agents **must not**:
 
 - Store secrets in the database
 - Use global mutable state
 - Block the async runtime
-- Persist plaintext secrets in repo or stats cache; use JSON fallback only when OS keychain is unavailable and warn clearly
+- Access credential storage directly; use `AccountSecretsStore` API only
 
 When unsure, prefer:
 
@@ -427,6 +429,11 @@ Before proceeding, verify **consistency across three dimensions**:
 - **Code:** Implementation correctly reflects the intended behavior
 - **Docs:** CLI.md and agents.md document all user-facing changes
 - **Examples:** Run all examples to ensure generated output is current and valid
+
+Verify documentation is up-to-date:
+- Check CLI.md accurately reflects current command behavior and options
+- Ensure agents.md captures any architectural changes or new constraints
+- Confirm all command examples in docs match actual implementation
 
 Rebuild all examples and validate output:
 ```bash
@@ -511,25 +518,46 @@ https://github.com/manuroe/matrix-year/pull/10#discussion_r2648705875
 
 #### 2. Apply Fixes
 
-- Address each comment with focused, minimal changes
+- Address **each comment in a separate commit** for clear traceability
 - Keep fixes aligned with project coding standards (see Rust quality bar)
 - Run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo test --all-features` after each fix
-- Commit fixes with clear messages referencing the issue
+- Commit fixes with clear messages referencing the discussion URL
 
 Example commit message:
 ```
-refactor(secrets,login): move key deletion function below implementations; deduplicate homeserver parsing; remove dead restore block
+fix(login): move entire account directory to prevent SDK database loss
+
+When the server returns a different user ID format than the hint, move the 
+entire account directory (including sdk/) instead of just session.json to 
+prevent losing the SDK database with encryption keys and sync state.
+
+Addresses: https://github.com/manuroe/matrix-year/pull/12#discussion_r2659498410
 ```
 
-#### 3. Mark Comments as Resolved
+#### 3. Comment on Review Threads
 
-After pushing fixes:
+After pushing fixes, add a reply to each review comment thread:
+
+- Use the GitHub API to reply directly to the review comment
+- Include the commit SHA that fixes the issue
+- Briefly explain what was changed
+
+Example using GitHub API:
+```bash
+gh api \
+  --method POST \
+  -H "Accept: application/vnd.github+json" \
+  /repos/manuroe/matrix-year/pulls/12/comments/2659498410/replies \
+  -f body="Fixed in 807aae4 - Now moves the entire account directory (including sdk/) instead of just session.json to prevent losing the SDK database with encryption keys and sync state."
+```
+
+#### 4. Mark Comments as Resolved
+
+After commenting with the fix:
 
 - Navigate to the PR discussion thread
 - Mark each addressed comment as "Resolved"
-- Reference the fix commit SHA in the resolution (e.g., "Fixed in f4b8fab")
-
-This provides clear traceability and helps reviewers verify fixes efficiently.
+- The commit reference in the comment provides clear traceability for reviewers
 
 ---
 
