@@ -518,25 +518,46 @@ https://github.com/manuroe/matrix-year/pull/10#discussion_r2648705875
 
 #### 2. Apply Fixes
 
-- Address each comment with focused, minimal changes
+- Address **each comment in a separate commit** for clear traceability
 - Keep fixes aligned with project coding standards (see Rust quality bar)
 - Run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo test --all-features` after each fix
-- Commit fixes with clear messages referencing the issue
+- Commit fixes with clear messages referencing the discussion URL
 
 Example commit message:
 ```
-refactor(secrets,login): move key deletion function below implementations; deduplicate homeserver parsing; remove dead restore block
+fix(login): move entire account directory to prevent SDK database loss
+
+When the server returns a different user ID format than the hint, move the 
+entire account directory (including sdk/) instead of just session.json to 
+prevent losing the SDK database with encryption keys and sync state.
+
+Addresses: https://github.com/manuroe/matrix-year/pull/12#discussion_r2659498410
 ```
 
-#### 3. Mark Comments as Resolved
+#### 3. Comment on Review Threads
 
-After pushing fixes:
+After pushing fixes, add a reply to each review comment thread:
+
+- Use the GitHub API to reply directly to the review comment
+- Include the commit SHA that fixes the issue
+- Briefly explain what was changed
+
+Example using GitHub API:
+```bash
+gh api \
+  --method POST \
+  -H "Accept: application/vnd.github+json" \
+  /repos/manuroe/matrix-year/pulls/12/comments/2659498410/replies \
+  -f body="Fixed in 807aae4 - Now moves the entire account directory (including sdk/) instead of just session.json to prevent losing the SDK database with encryption keys and sync state."
+```
+
+#### 4. Mark Comments as Resolved
+
+After commenting with the fix:
 
 - Navigate to the PR discussion thread
 - Mark each addressed comment as "Resolved"
-- Reference the fix commit SHA in the resolution (e.g., "Fixed in f4b8fab")
-
-This provides clear traceability and helps reviewers verify fixes efficiently.
+- The commit reference in the comment provides clear traceability for reviewers
 
 ---
 
