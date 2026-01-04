@@ -17,7 +17,7 @@ my logout [--user-id <@alice:example.org>]
 **Login Behavior:**
 - Displays existing logged-in accounts for reference (if any).
 - Prompts for homeserver, username and password to add a new account.
-- Stores credentials locally in `.my/accounts/<account>/meta/credentials.json`.
+- Stores credentials locally in `.my/accounts/<account>/meta/credentials.json` with restricted permissions (owner read/write only on Unix).
 - Persists session metadata to `.my/accounts/<account>/meta/session.json` and restores sessions automatically on subsequent runs.
 - If cross-signing is enabled and the new device is unverified, offers SAS emoji verification or guidance for recovery-key verification.
 - Supports multi-account: pass `--user-id` to target a specific account, otherwise an interactive prompt appears after showing existing accounts.

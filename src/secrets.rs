@@ -124,6 +124,16 @@ fn save_secrets_to_file(account_id: &str, secrets: &AccountSecrets) -> Result<()
     fs::write(&path, json)
         .with_context(|| format!("Failed to write credentials to {}", path.display()))?;
 
+    // Set restrictive permissions (0600 - owner read/write only)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&path)?.permissions();
+        perms.set_mode(0o600);
+        fs::set_permissions(&path, perms)
+            .with_context(|| format!("Failed to set permissions on {}", path.display()))?;
+    }
+
     Ok(())
 }
 

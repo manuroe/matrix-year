@@ -119,6 +119,7 @@ The SDK:
 
 Current implementation:
 - Stores credentials in local JSON files at `accounts/{account}/meta/credentials.json`
+- File permissions restricted to owner-only (0600 on Unix)
 - Storage mechanism is completely encapsulated in `secrets.rs`
 
 The abstraction allows switching storage backends (keychain, encrypted files, etc.) without changing other modules.
