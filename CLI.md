@@ -131,7 +131,7 @@ The project includes integration tests that validate the login and cross-signing
 **Run integration tests:**
 
 ```bash
-cargo test --test integration_login -- --ignored --nocapture
+(set -a && source .env && set +a && cargo test --test integration_login -- --ignored --nocapture)
 ```
 
 **Note:** Never commit the `.env` file as it contains sensitive credentials. Only `.env.template` should be committed.
