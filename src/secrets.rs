@@ -120,18 +120,31 @@ fn save_secrets_to_file(account_id: &str, secrets: &AccountSecrets) -> Result<()
     // Serialize credentials
     let json = serde_json::to_string_pretty(secrets).context("Failed to serialize credentials")?;
 
-    // Write to file
-    fs::write(&path, json)
-        .with_context(|| format!("Failed to write credentials to {}", path.display()))?;
-
-    // Set restrictive permissions (0600 - owner read/write only)
+    // Write to file with restrictive permissions (0600 - owner read/write only)
+    // On Unix, we set permissions atomically during file creation to avoid a race condition
+    // where the file would be readable by others between creation and permission change.
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(&path)?.permissions();
-        perms.set_mode(0o600);
-        fs::set_permissions(&path, perms)
-            .with_context(|| format!("Failed to set permissions on {}", path.display()))?;
+        use std::fs::OpenOptions;
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&path)
+            .with_context(|| format!("Failed to create credentials file {}", path.display()))?;
+
+        file.write_all(json.as_bytes())
+            .with_context(|| format!("Failed to write credentials to {}", path.display()))?;
+    }
+
+    #[cfg(not(unix))]
+    {
+        fs::write(&path, json)
+            .with_context(|| format!("Failed to write credentials to {}", path.display()))?;
     }
 
     Ok(())
