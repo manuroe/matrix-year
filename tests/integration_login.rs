@@ -50,14 +50,10 @@ async fn test_login_with_cross_signing() -> Result<()> {
         .context("No host in homeserver URL")?
         .to_string();
 
-    let (client, actual_user_id, _restored) = my::login::login_with_credentials(
-        &homeserver_host,
-        &user_id,
-        &password,
-        &accounts_root,
-    )
-    .await
-    .context("Login failed")?;
+    let (client, actual_user_id, _restored) =
+        my::login::login_with_credentials(&homeserver_host, &user_id, &password, &accounts_root)
+            .await
+            .context("Login failed")?;
 
     println!("✓ Login successful for: {}", actual_user_id);
 
