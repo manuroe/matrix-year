@@ -36,8 +36,22 @@ impl AccountSecretsStore {
     /// Create a new secrets store for an account
     ///
     /// Loads existing credentials if available, or initializes empty store.
+    /// Logs a warning if credentials file exists but cannot be loaded.
     pub fn new(account_id: &str) -> Result<Self> {
-        let secrets = load_secrets_from_file(account_id).unwrap_or_default();
+        let secrets = match load_secrets_from_file(account_id) {
+            Ok(s) => s,
+            Err(e) => {
+                let path = credentials_file_path(account_id);
+                if path.exists() {
+                    eprintln!(
+                        "Warning: credentials file exists at {} but could not be loaded: {}",
+                        path.display(),
+                        e
+                    );
+                }
+                AccountSecrets::default()
+            }
+        };
         Ok(Self {
             account_id: account_id.to_owned(),
             secrets,
@@ -91,7 +105,7 @@ impl AccountSecretsStore {
 
 fn credentials_file_path(account_id: &str) -> PathBuf {
     let data_dir = std::env::var("MY_DATA_DIR").unwrap_or_else(|_| ".my".to_string());
-    let account_dirname = account_id.replace(':', "_");
+    let account_dirname = crate::login::account_id_to_dirname(account_id);
     Path::new(&data_dir)
         .join("accounts")
         .join(account_dirname)
@@ -144,4 +158,243 @@ fn delete_secrets_file(account_id: &str) -> Result<()> {
             .with_context(|| format!("Failed to delete credentials file {}", path.display()))?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+    use std::time::SystemTime;
+
+    // Use a mutex to ensure tests don't run in parallel and interfere with each other
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    fn test_account_id() -> String {
+        "@testuser:example.org".to_string()
+    }
+
+    fn setup_test_env() -> String {
+        // Create a unique temp directory for each test
+        let nanos = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let test_id = format!("test-secrets-{}", nanos);
+        let test_dir = std::env::temp_dir().join(test_id);
+        std::env::set_var("MY_DATA_DIR", test_dir.to_str().unwrap());
+        test_dir.to_string_lossy().to_string()
+    }
+
+    fn cleanup_test_env(test_dir: &str) {
+        let _ = fs::remove_dir_all(test_dir);
+        std::env::remove_var("MY_DATA_DIR");
+    }
+
+    #[test]
+    fn test_new_store_creates_empty_when_no_file() {
+        let _lock = TEST_LOCK.lock().unwrap();
+        let test_dir = setup_test_env();
+        let account_id = test_account_id();
+
+        let store = AccountSecretsStore::new(&account_id).unwrap();
+
+        assert_eq!(store.get_db_passphrase(), None);
+        assert_eq!(store.get_access_token(), None);
+        assert_eq!(store.get_refresh_token(), None);
+
+        cleanup_test_env(&test_dir);
+    }
+
+    #[test]
+    fn test_store_and_retrieve_credentials() {
+        let _lock = TEST_LOCK.lock().unwrap();
+        let test_dir = setup_test_env();
+        let account_id = test_account_id();
+
+        let mut store = AccountSecretsStore::new(&account_id).unwrap();
+        store
+            .store_credentials(
+                Some("test-passphrase".to_string()),
+                Some("test-access-token".to_string()),
+                Some("test-refresh-token".to_string()),
+            )
+            .unwrap();
+
+        // Verify in-memory state
+        assert_eq!(
+            store.get_db_passphrase(),
+            Some("test-passphrase".to_string())
+        );
+        assert_eq!(
+            store.get_access_token(),
+            Some("test-access-token".to_string())
+        );
+        assert_eq!(
+            store.get_refresh_token(),
+            Some("test-refresh-token".to_string())
+        );
+
+        // Create a new store instance to verify persistence
+        let store2 = AccountSecretsStore::new(&account_id).unwrap();
+        assert_eq!(
+            store2.get_db_passphrase(),
+            Some("test-passphrase".to_string())
+        );
+        assert_eq!(
+            store2.get_access_token(),
+            Some("test-access-token".to_string())
+        );
+        assert_eq!(
+            store2.get_refresh_token(),
+            Some("test-refresh-token".to_string())
+        );
+
+        cleanup_test_env(&test_dir);
+    }
+
+    #[test]
+    fn test_delete_credentials() {
+        let _lock = TEST_LOCK.lock().unwrap();
+        let test_dir = setup_test_env();
+        let account_id = test_account_id();
+
+        let mut store = AccountSecretsStore::new(&account_id).unwrap();
+        store
+            .store_credentials(
+                Some("test-passphrase".to_string()),
+                Some("test-access-token".to_string()),
+                None,
+            )
+            .unwrap();
+
+        // Verify credentials were stored
+        assert!(store.get_db_passphrase().is_some());
+
+        // Delete credentials
+        store.delete_all().unwrap();
+
+        // Verify in-memory state is cleared
+        assert_eq!(store.get_db_passphrase(), None);
+        assert_eq!(store.get_access_token(), None);
+        assert_eq!(store.get_refresh_token(), None);
+
+        // Verify file is deleted
+        let path = credentials_file_path(&account_id);
+        assert!(!path.exists());
+
+        cleanup_test_env(&test_dir);
+    }
+
+    #[test]
+    fn test_partial_credentials() {
+        let _lock = TEST_LOCK.lock().unwrap();
+        let test_dir = setup_test_env();
+        let account_id = test_account_id();
+
+        let mut store = AccountSecretsStore::new(&account_id).unwrap();
+        store
+            .store_credentials(Some("passphrase".to_string()), None, None)
+            .unwrap();
+
+        assert_eq!(store.get_db_passphrase(), Some("passphrase".to_string()));
+        assert_eq!(store.get_access_token(), None);
+        assert_eq!(store.get_refresh_token(), None);
+
+        cleanup_test_env(&test_dir);
+    }
+
+    #[test]
+    fn test_corrupted_file_handling() {
+        let _lock = TEST_LOCK.lock().unwrap();
+        let test_dir = setup_test_env();
+        let account_id = test_account_id();
+
+        // Create a corrupted credentials file
+        let path = credentials_file_path(&account_id);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "not valid json").unwrap();
+
+        // Should log warning but not fail
+        let store = AccountSecretsStore::new(&account_id).unwrap();
+
+        // Should have empty credentials
+        assert_eq!(store.get_db_passphrase(), None);
+        assert_eq!(store.get_access_token(), None);
+
+        cleanup_test_env(&test_dir);
+    }
+
+    #[test]
+    fn test_update_credentials() {
+        let _lock = TEST_LOCK.lock().unwrap();
+        let test_dir = setup_test_env();
+        let account_id = test_account_id();
+
+        let mut store = AccountSecretsStore::new(&account_id).unwrap();
+        store
+            .store_credentials(
+                Some("passphrase1".to_string()),
+                Some("token1".to_string()),
+                None,
+            )
+            .unwrap();
+
+        // Update with new values
+        store
+            .store_credentials(
+                Some("passphrase2".to_string()),
+                Some("token2".to_string()),
+                Some("refresh2".to_string()),
+            )
+            .unwrap();
+
+        assert_eq!(store.get_db_passphrase(), Some("passphrase2".to_string()));
+        assert_eq!(store.get_access_token(), Some("token2".to_string()));
+        assert_eq!(store.get_refresh_token(), Some("refresh2".to_string()));
+
+        cleanup_test_env(&test_dir);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_file_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let _lock = TEST_LOCK.lock().unwrap();
+        let test_dir = setup_test_env();
+        let account_id = test_account_id();
+
+        let mut store = AccountSecretsStore::new(&account_id).unwrap();
+        store
+            .store_credentials(
+                Some("passphrase".to_string()),
+                Some("token".to_string()),
+                None,
+            )
+            .unwrap();
+
+        let path = credentials_file_path(&account_id);
+        let metadata = fs::metadata(&path).unwrap();
+        let perms = metadata.permissions();
+
+        // Verify permissions are 0600 (owner read/write only)
+        // 0o600 in octal is 384 in decimal
+        assert_eq!(perms.mode() & 0o777, 0o600, "File permissions should be 0600 (owner read/write only)");
+
+        cleanup_test_env(&test_dir);
+    }
+
+    #[test]
+    fn test_account_id_to_dirname_usage() {
+        let _lock = TEST_LOCK.lock().unwrap();
+        let test_dir = setup_test_env();
+        let account_id = "@user:example.org";
+
+        let path = credentials_file_path(account_id);
+
+        // Verify the path uses account_id_to_dirname (replaces : with _)
+        assert!(path.to_string_lossy().contains("@user_example.org"));
+
+        cleanup_test_env(&test_dir);
+    }
 }

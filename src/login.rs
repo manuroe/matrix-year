@@ -150,6 +150,22 @@ async fn login_interactive(
         session.tokens.refresh_token.clone(),
     )?;
 
+    // Verify directory consistency: ensure actual_user_id matches account_id_hint
+    // If server returned a different format, we may need to move the session.json
+    let expected_account_dir = accounts_root.join(account_id_to_dirname(&actual_user_id));
+    if account_dir != expected_account_dir {
+        eprintln!(
+            "Warning: Server returned user ID '{}' which differs from hint '{}'. Moving session files...",
+            actual_user_id, account_id_hint
+        );
+        fs::create_dir_all(expected_account_dir.join("meta"))?;
+        let new_session_path = expected_account_dir.join("meta/session.json");
+        fs::rename(&session_path, &new_session_path)
+            .with_context(|| format!("Failed to move session.json to {}", new_session_path.display()))?;
+        // Remove old account_dir if empty
+        let _ = fs::remove_dir_all(&account_dir);
+    }
+
     Ok((client, actual_user_id, false))
 }
 
