@@ -277,15 +277,21 @@ pub async fn maybe_verify_device(client: &Client) -> Result<()> {
                         eprintln!("\nSelect a trusted device to verify with:");
                         let device_options: Vec<_> = trusted
                             .iter()
-                            .map(|d| d.display_name().unwrap_or("(unknown)").to_string())
+                            .map(|d| {
+                                let name = d.display_name().unwrap_or("(unknown)");
+                                format!("{} ({})", name, d.device_id())
+                            })
                             .collect();
 
-                        let device_choice = inquire::Select::new("Device:", device_options)
+                        let device_choice = inquire::Select::new("Device:", device_options.clone())
                             .prompt()?;
 
-                        let peer = trusted.iter()
-                            .find(|d| d.display_name().unwrap_or("(unknown)") == device_choice)
+                        let index = device_options
+                            .iter()
+                            .position(|s| s == &device_choice)
                             .context("Device not found")?;
+
+                        let peer = &trusted[index];
 
                         let req = peer
                             .request_verification()
