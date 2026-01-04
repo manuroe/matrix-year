@@ -1,11 +1,5 @@
-pub use crate::secrets::keyring_set_account_secrets;
 use anyhow::{Context, Result};
-// use matrix_sdk::authentication::matrix::MatrixSession;
-// use matrix_sdk::authentication::SessionTokens;
-// use matrix_sdk::ruma::{OwnedDeviceId, OwnedUserId, UserId};
-// use matrix_sdk::SessionMeta;
 use matrix_sdk::{AuthSession, Client};
-// (no direct use of SessionMeta in this MVP)
 use rand::{distributions::Alphanumeric, Rng};
 use rpassword::prompt_password;
 use std::env;
@@ -68,6 +62,10 @@ pub async fn run(user_id_flag: Option<String>) -> Result<()> {
         eprintln!("Logged in and stored credentials for {}", account_id);
     }
 
+    // Gracefully shut down the client and give background tasks time to complete
+    drop(client);
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
     Ok(())
 }
 
@@ -108,10 +106,6 @@ async fn login_interactive(
     let hs_candidate = candidate_from_input(server_trim);
     let homeserver_url = homeserver_url_from_candidate(&hs_candidate)?;
 
-    // Store homeserver URL for later use (logout, etc)
-    let homeserver_txt = account_dir.join("meta/homeserver.txt");
-    fs::write(&homeserver_txt, homeserver_url.as_bytes())?;
-
     // Always generate a new db_passphrase and overwrite secrets on login
     let passphrase = generate_passphrase();
 
@@ -148,13 +142,13 @@ async fn login_interactive(
     let session_path = account_dir.join("meta/session.json");
     fs::write(&session_path, serde_json::to_vec(&meta)?)?;
 
-    // Always overwrite secrets with new credentials
-    let secrets = crate::secrets::AccountSecrets {
-        access_token: Some(session.tokens.access_token.clone()),
-        refresh_token: session.tokens.refresh_token.clone(),
-        db_passphrase: Some(passphrase.clone()),
-    };
-    keyring_set_account_secrets(&actual_user_id, &secrets)?;
+    // Store credentials using the new abstraction
+    let mut secrets_store = crate::secrets::AccountSecretsStore::new(&actual_user_id)?;
+    secrets_store.store_credentials(
+        Some(passphrase.clone()),
+        Some(session.tokens.access_token.clone()),
+        session.tokens.refresh_token.clone(),
+    )?;
 
     Ok((client, actual_user_id, false))
 }

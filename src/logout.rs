@@ -1,4 +1,3 @@
-use crate::secrets::SecretsCache;
 use anyhow::{Context, Result};
 use inquire::MultiSelect;
 use matrix_sdk::authentication::matrix::MatrixSession;
@@ -10,7 +9,6 @@ use std::fs;
 use std::path::Path;
 
 use crate::login::{account_id_to_dirname, prompt, resolve_data_root, SessionMetaFile};
-use crate::secrets::keyring_delete_all_secrets;
 
 pub async fn run(user_id_flag: Option<String>) -> Result<()> {
     let data_root = resolve_data_root()?;
@@ -79,14 +77,12 @@ pub async fn run(user_id_flag: Option<String>) -> Result<()> {
         return Ok(());
     }
 
-    // Use a per-execution cache for secrets
-    let mut secrets_cache = SecretsCache::new();
     // Logout from homeserver and remove local data for each account
     for account_id in &accounts_to_remove {
         let account_dir = accounts_root.join(account_id_to_dirname(account_id));
 
         // Try to logout from the homeserver first
-        if let Err(e) = logout_from_homeserver(account_id, &account_dir, &mut secrets_cache).await {
+        if let Err(e) = logout_from_homeserver(account_id, &account_dir).await {
             eprintln!(
                 "Warning: Failed to logout from homeserver for {}:",
                 account_id
@@ -95,16 +91,13 @@ pub async fn run(user_id_flag: Option<String>) -> Result<()> {
             eprintln!("Continuing with local cleanup...");
         }
 
-        // Remove all secrets from keychain (single-entry and legacy)
-        match keyring_delete_all_secrets(account_id) {
-            Ok(_) => eprintln!(
-                "[info] Deleted all secrets from keychain for {}",
-                account_id
-            ),
-            Err(e) => eprintln!(
-                "[warn] Failed to delete all secrets from keychain for {}: {:#}",
+        // Remove credentials using the abstraction
+        let mut secrets_store = crate::secrets::AccountSecretsStore::new(account_id)?;
+        if let Err(e) = secrets_store.delete_all() {
+            eprintln!(
+                "[warn] Failed to delete credentials for {}: {:#}",
                 account_id, e
-            ),
+            );
         }
 
         // Remove account directory (includes SDK database and all local data)
@@ -119,17 +112,14 @@ pub async fn run(user_id_flag: Option<String>) -> Result<()> {
     Ok(())
 }
 
-async fn logout_from_homeserver(
-    account_id: &str,
-    account_dir: &Path,
-    secrets_cache: &mut SecretsCache,
-) -> Result<()> {
+async fn logout_from_homeserver(account_id: &str, account_dir: &Path) -> Result<()> {
     let sdk_store_dir = account_dir.join("sdk");
     let meta_path = account_dir.join("meta/session.json");
 
-    // Load passphrase using cache
-    let passphrase = secrets_cache
-        .get_db_passphrase(account_id)?
+    // Load secrets using the abstraction
+    let secrets_store = crate::secrets::AccountSecretsStore::new(account_id)?;
+    let passphrase = secrets_store
+        .get_db_passphrase()
         .context("No passphrase found for session restore")?;
 
     // Read homeserver URL from session.json
@@ -153,8 +143,8 @@ async fn logout_from_homeserver(
         let user_id: OwnedUserId = UserId::parse(&meta_file.user_id)?;
         let device_id: OwnedDeviceId = OwnedDeviceId::from(meta_file.device_id.as_str());
 
-        let access_token = secrets_cache.get_access_token(account_id)?;
-        let refresh_token = secrets_cache.get_refresh_token(account_id)?;
+        let access_token = secrets_store.get_access_token();
+        let refresh_token = secrets_store.get_refresh_token();
 
         if let Some(access_token) = access_token {
             let session_meta = SessionMeta { user_id, device_id };

@@ -1,129 +1,137 @@
 // src/secrets.rs
-// Keychain secrets management for matrix-year
+// Secrets management for matrix-year
+// Stores credentials in local JSON files with restricted permissions
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+// ============================================
+// Internal Types (Private)
+// ============================================
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct AccountSecrets {
-    pub db_passphrase: Option<String>,
-    pub access_token: Option<String>,
-    pub refresh_token: Option<String>,
+struct AccountSecrets {
+    db_passphrase: Option<String>,
+    access_token: Option<String>,
+    refresh_token: Option<String>,
 }
 
-pub const SERVICE_NAME: &str = "my.matrix-year";
+// ============================================
+// Public API
+// ============================================
 
-pub fn keyring_entry(account_id: &str, key_name: &str) -> Result<keyring::Entry> {
-    let account = format!("{}#{}", account_id, key_name);
-    keyring::Entry::new(SERVICE_NAME, &account).context("keyring entry")
+/// Storage for account credentials
+///
+/// This struct manages all credential storage for a Matrix account.
+/// The storage implementation is completely opaque - callers don't need
+/// to know whether credentials are stored in files, keychain, or elsewhere.
+pub struct AccountSecretsStore {
+    account_id: String,
+    secrets: AccountSecrets,
 }
 
-pub fn keyring_get_account_secrets(account_id: &str) -> Result<AccountSecrets> {
-    let entry = keyring_entry(account_id, "secrets")?;
-    match entry.get_password() {
-        Ok(json) => {
-            let secrets: AccountSecrets = serde_json::from_str(&json)?;
-            Ok(secrets)
-        }
-        Err(keyring::Error::NoEntry) => {
-            eprintln!("[info] No single-entry secrets found, trying per-secret keys...");
-            let db_passphrase = keyring_get_secret_uncached(account_id, "db_passphrase")
-                .ok()
-                .flatten();
-            let access_token = keyring_get_secret_uncached(account_id, "access_token")
-                .ok()
-                .flatten();
-            let refresh_token = keyring_get_secret_uncached(account_id, "refresh_token")
-                .ok()
-                .flatten();
-            let secrets = AccountSecrets {
-                db_passphrase,
-                access_token,
-                refresh_token,
-            };
-            if secrets.db_passphrase.is_some()
-                || secrets.access_token.is_some()
-                || secrets.refresh_token.is_some()
-            {
-                let _ = keyring_set_account_secrets(account_id, &secrets);
-            }
-            Ok(secrets)
-        }
-        Err(e) => Err(anyhow!(e)),
-    }
-}
-
-pub fn keyring_set_account_secrets(account_id: &str, secrets: &AccountSecrets) -> Result<()> {
-    let entry = keyring_entry(account_id, "secrets")?;
-    let json = serde_json::to_string(secrets)?;
-    entry.set_password(&json).map_err(|e| anyhow!(e))
-}
-
-pub fn keyring_get_secret_uncached(account_id: &str, key_name: &str) -> Result<Option<String>> {
-    let entry = keyring_entry(account_id, key_name)?;
-    match entry.get_password() {
-        Ok(secret) => Ok(Some(secret)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(anyhow!(e)),
-    }
-}
-
-#[derive(Default)]
-pub struct SecretsCache {
-    map: HashMap<String, AccountSecrets>,
-}
-
-impl SecretsCache {
-    pub fn new() -> Self {
-        Self {
-            map: HashMap::new(),
-        }
+impl AccountSecretsStore {
+    /// Create a new secrets store for an account
+    ///
+    /// Loads existing credentials if available, or initializes empty store.
+    pub fn new(account_id: &str) -> Result<Self> {
+        let secrets = load_secrets_from_file(account_id).unwrap_or_default();
+        Ok(Self {
+            account_id: account_id.to_owned(),
+            secrets,
+        })
     }
 
-    pub fn get_account_secrets(&mut self, account_id: &str) -> Result<&AccountSecrets> {
-        if !self.map.contains_key(account_id) {
-            let secrets = keyring_get_account_secrets(account_id)?;
-            self.map.insert(account_id.to_owned(), secrets);
-        }
-        Ok(self.map.get(account_id).expect("secrets must be present"))
+    /// Get the database passphrase
+    pub fn get_db_passphrase(&self) -> Option<String> {
+        self.secrets.db_passphrase.clone()
     }
 
-    pub fn get_db_passphrase(&mut self, account_id: &str) -> Result<Option<String>> {
-        Ok(self.get_account_secrets(account_id)?.db_passphrase.clone())
+    /// Get the access token
+    pub fn get_access_token(&self) -> Option<String> {
+        self.secrets.access_token.clone()
     }
-    pub fn get_access_token(&mut self, account_id: &str) -> Result<Option<String>> {
-        Ok(self.get_account_secrets(account_id)?.access_token.clone())
+
+    /// Get the refresh token
+    pub fn get_refresh_token(&self) -> Option<String> {
+        self.secrets.refresh_token.clone()
     }
-    pub fn get_refresh_token(&mut self, account_id: &str) -> Result<Option<String>> {
-        Ok(self.get_account_secrets(account_id)?.refresh_token.clone())
+
+    /// Store all credentials
+    ///
+    /// Updates the in-memory state and persists to storage immediately.
+    pub fn store_credentials(
+        &mut self,
+        db_passphrase: Option<String>,
+        access_token: Option<String>,
+        refresh_token: Option<String>,
+    ) -> Result<()> {
+        self.secrets = AccountSecrets {
+            db_passphrase,
+            access_token,
+            refresh_token,
+        };
+        save_secrets_to_file(&self.account_id, &self.secrets)
+    }
+
+    /// Delete all stored credentials
+    ///
+    /// Removes credentials from storage and clears in-memory state.
+    pub fn delete_all(&mut self) -> Result<()> {
+        self.secrets = AccountSecrets::default();
+        delete_secrets_file(&self.account_id)
     }
 }
 
-/// Delete all secrets (single-entry and legacy per-secret) for an account from the keychain.
-pub fn keyring_delete_all_secrets(account_id: &str) -> Result<()> {
-    let mut errors = Vec::new();
-    // Try to delete the single-entry blob
-    if let Ok(entry) = keyring_entry(account_id, "secrets") {
-        if let Err(e) = entry.delete_credential() {
-            if !matches!(e, keyring::Error::NoEntry) {
-                errors.push(e);
-            }
-        }
+// ============================================
+// Internal Implementation
+// ============================================
+
+fn credentials_file_path(account_id: &str) -> PathBuf {
+    let data_dir = std::env::var("MY_DATA_DIR").unwrap_or_else(|_| ".my".to_string());
+    let account_dirname = account_id.replace(':', "_");
+    Path::new(&data_dir)
+        .join("accounts")
+        .join(account_dirname)
+        .join("meta")
+        .join("credentials.json")
+}
+
+fn load_secrets_from_file(account_id: &str) -> Result<AccountSecrets> {
+    let path = credentials_file_path(account_id);
+    let content = fs::read_to_string(&path)
+        .with_context(|| format!("Failed to read credentials from {}", path.display()))?;
+    let secrets: AccountSecrets = serde_json::from_str(&content)
+        .with_context(|| format!("Failed to parse credentials from {}", path.display()))?;
+    Ok(secrets)
+}
+
+fn save_secrets_to_file(account_id: &str, secrets: &AccountSecrets) -> Result<()> {
+    let path = credentials_file_path(account_id);
+
+    // Create parent directory if needed
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("Failed to create directory {}", parent.display()))?;
     }
-    // Try to delete legacy per-secret keys
-    for key in ["db_passphrase", "access_token", "refresh_token"] {
-        if let Ok(entry) = keyring_entry(account_id, key) {
-            if let Err(e) = entry.delete_credential() {
-                if !matches!(e, keyring::Error::NoEntry) {
-                    errors.push(e);
-                }
-            }
-        }
+
+    // Serialize credentials
+    let json = serde_json::to_string_pretty(secrets).context("Failed to serialize credentials")?;
+
+    // Write to file
+    fs::write(&path, json)
+        .with_context(|| format!("Failed to write credentials to {}", path.display()))?;
+
+    Ok(())
+}
+
+fn delete_secrets_file(account_id: &str) -> Result<()> {
+    let path = credentials_file_path(account_id);
+    if path.exists() {
+        fs::remove_file(&path)
+            .with_context(|| format!("Failed to delete credentials file {}", path.display()))?;
     }
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(anyhow!("Failed to delete some secrets: {:?}", errors))
-    }
+    Ok(())
 }

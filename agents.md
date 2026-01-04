@@ -115,13 +115,13 @@ The SDK:
 - Handles end-to-end encryption automatically
 - Manages sync state and event persistence
 
-Secrets (access tokens, database encryption keys) **must be stored securely** using platform-appropriate facilities:
+**Credentials storage** (access tokens, refresh tokens, database encryption keys) is managed via the `AccountSecretsStore` abstraction in `src/secrets.rs`. 
 
-- **macOS:** Keychain
-- **Linux:** Secret Service API (libsecret) or similar
-- **Windows:** Credential Manager
+Current implementation:
+- Stores credentials in local JSON files at `accounts/{account}/meta/credentials.json`
+- Storage mechanism is completely encapsulated in `secrets.rs`
 
-Agents **must not** store secrets in plaintext or in the stats database.
+The abstraction allows switching storage backends (keychain, encrypted files, etc.) without changing other modules.
 
 ---
 
@@ -372,14 +372,15 @@ Agents **must respect**:
 - Account isolation (no cross-account reads)
 - SQLite as the single source of truth
 - Incremental crawling via sync tokens
-- Session persistence via SDK sessions (access + refresh tokens) and OS keychain-first storage policy
+- Session persistence via SDK sessions (access + refresh tokens)
+- Credential storage abstraction via `AccountSecretsStore`
 
 Agents **must not**:
 
 - Store secrets in the database
 - Use global mutable state
 - Block the async runtime
-- Persist plaintext secrets in repo or stats cache; use JSON fallback only when OS keychain is unavailable and warn clearly
+- Access credential storage directly; use `AccountSecretsStore` API only
 
 When unsure, prefer:
 
@@ -427,6 +428,11 @@ Before proceeding, verify **consistency across three dimensions**:
 - **Code:** Implementation correctly reflects the intended behavior
 - **Docs:** CLI.md and agents.md document all user-facing changes
 - **Examples:** Run all examples to ensure generated output is current and valid
+
+Verify documentation is up-to-date:
+- Check CLI.md accurately reflects current command behavior and options
+- Ensure agents.md captures any architectural changes or new constraints
+- Confirm all command examples in docs match actual implementation
 
 Rebuild all examples and validate output:
 ```bash

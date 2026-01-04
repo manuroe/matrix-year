@@ -1,5 +1,4 @@
 use crate::login::{account_id_to_dirname, resolve_data_root};
-use crate::secrets::SecretsCache;
 use anyhow::Result;
 use std::fs;
 
@@ -30,8 +29,6 @@ pub fn run(user_id_flag: Option<String>) -> Result<()> {
         return Ok(());
     }
 
-    // Use a per-execution cache for secrets
-    let mut secrets_cache = SecretsCache::new();
     for account_id in &accounts {
         let account_dir = accounts_root.join(account_id_to_dirname(account_id));
         println!("\nAccount: {}", account_id);
@@ -56,22 +53,26 @@ pub fn run(user_id_flag: Option<String>) -> Result<()> {
             if cred_path.exists() { "OK" } else { "MISSING" }
         );
 
-        // Check keychain secrets using the new cache
-        let db = secrets_cache.get_db_passphrase(account_id).ok().flatten();
-        let access = secrets_cache.get_access_token(account_id).ok().flatten();
-        let refresh = secrets_cache.get_refresh_token(account_id).ok().flatten();
-        println!(
-            "  Keychain: db_passphrase: {}",
-            if db.is_some() { "OK" } else { "MISSING" }
-        );
-        println!(
-            "            access_token: {}",
-            if access.is_some() { "OK" } else { "MISSING" }
-        );
-        println!(
-            "            refresh_token: {}",
-            if refresh.is_some() { "OK" } else { "MISSING" }
-        );
+        // Check stored credentials using the abstraction
+        if let Ok(secrets_store) = crate::secrets::AccountSecretsStore::new(account_id) {
+            let db = secrets_store.get_db_passphrase();
+            let access = secrets_store.get_access_token();
+            let refresh = secrets_store.get_refresh_token();
+            println!(
+                "  Credentials: db_passphrase: {}",
+                if db.is_some() { "OK" } else { "MISSING" }
+            );
+            println!(
+                "               access_token: {}",
+                if access.is_some() { "OK" } else { "MISSING" }
+            );
+            println!(
+                "               refresh_token: {}",
+                if refresh.is_some() { "OK" } else { "MISSING" }
+            );
+        } else {
+            println!("  Credentials: ERROR (failed to load)");
+        }
     }
     Ok(())
 }

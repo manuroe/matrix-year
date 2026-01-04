@@ -17,7 +17,7 @@ my logout [--user-id <@alice:example.org>]
 **Login Behavior:**
 - Displays existing logged-in accounts for reference (if any).
 - Prompts for homeserver, username and password to add a new account.
-- Stores secrets in the OS keychain (access + refresh tokens, DB passphrase); falls back to `.my/accounts/<account>/meta/credentials.json` with a clear warning if the keychain is unavailable.
+- Stores credentials locally in `.my/accounts/<account>/meta/credentials.json`.
 - Persists session metadata to `.my/accounts/<account>/meta/session.json` and restores sessions automatically on subsequent runs.
 - If cross-signing is enabled and the new device is unverified, offers SAS emoji verification or guidance for recovery-key verification.
 - Supports multi-account: pass `--user-id` to target a specific account, otherwise an interactive prompt appears after showing existing accounts.
@@ -27,7 +27,7 @@ my logout [--user-id <@alice:example.org>]
   - With a single account: prompts for confirmation and proceeds.
   - With multiple accounts: shows interactive selection including an "All" option.
 - Asks for user confirmation displaying the user ID(s) before proceeding.
-- Removes stored credentials from OS keychain and deletes local account data from `.my/accounts/<account>/`.
+- Removes stored credentials and deletes local account data from `.my/accounts/<account>/`.
 
 **Examples:**
 ```bash
@@ -49,7 +49,7 @@ my status
 - For each account, displays:
   - Matrix user ID
   - Homeserver
-  - Whether credentials are present and valid (keychain or fallback)
+  - Whether credentials are present and valid
   - Session health (restorable, needs login, etc.)
 - Exits with nonzero status if no accounts are found or if any account is in an error state.
 

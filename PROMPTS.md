@@ -125,3 +125,30 @@
 > - share the env setup and add cache mechanism
 > - share the build
 > is there a way to optimise build time? It takes 2 minutes in the CI. It is ridiculous for such a small project
+
+## PR: Replace Keychain with JSON Storage and Refactor Secrets Abstraction
+
+> Remove keychain storage and store credentials (user id, access token, device id) to a local json file
+
+> While doing the work, refactor the code to add some abstraction so that the credentials implementation details are only in one file, possibly secrets.rs. Only this file should be changed next time we change the storage
+
+> Start implementation
+
+> what is the purpose of the `meta/homeserver.txt` file?
+
+> yes
+
+> PR it
+
+> check if CLI.md doc is up-to-date
+
+> add the CLI.md check in the checks before making a PR of agents.md
+
+> is it really an issue when the disk is end to end encrypted?
+
+> remove
+
+> on the same topic, do we really need 0600 protection?
+
+> remove
+
