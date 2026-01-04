@@ -160,8 +160,12 @@ async fn login_interactive(
         );
         fs::create_dir_all(expected_account_dir.join("meta"))?;
         let new_session_path = expected_account_dir.join("meta/session.json");
-        fs::rename(&session_path, &new_session_path)
-            .with_context(|| format!("Failed to move session.json to {}", new_session_path.display()))?;
+        fs::rename(&session_path, &new_session_path).with_context(|| {
+            format!(
+                "Failed to move session.json to {}",
+                new_session_path.display()
+            )
+        })?;
         // Remove old account_dir if empty
         let _ = fs::remove_dir_all(&account_dir);
     }

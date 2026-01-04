@@ -379,7 +379,11 @@ mod tests {
 
         // Verify permissions are 0600 (owner read/write only)
         // 0o600 in octal is 384 in decimal
-        assert_eq!(perms.mode() & 0o777, 0o600, "File permissions should be 0600 (owner read/write only)");
+        assert_eq!(
+            perms.mode() & 0o777,
+            0o600,
+            "File permissions should be 0600 (owner read/write only)"
+        );
 
         cleanup_test_env(&test_dir);
     }
