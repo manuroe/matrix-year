@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use std::env;
+use url::Url;
 
 /// Integration test for login with cross-signing verification
 ///
@@ -42,8 +43,15 @@ async fn test_login_with_cross_signing() -> Result<()> {
     println!("Using accounts directory: {}", accounts_root.display());
 
     // Step 1: Login with credentials (stores credentials in secrets store)
+    // Extract hostname from homeserver URL using proper URL parsing
+    let homeserver_host = Url::parse(&homeserver)
+        .context("Invalid homeserver URL")?
+        .host_str()
+        .context("No host in homeserver URL")?
+        .to_string();
+
     let (client, actual_user_id, _restored) = my::login::login_with_credentials(
-        &homeserver.replace("https://", "").replace("http://", ""),
+        &homeserver_host,
         &user_id,
         &password,
         &accounts_root,
