@@ -151,23 +151,29 @@ async fn login_interactive(
     )?;
 
     // Verify directory consistency: ensure actual_user_id matches account_id_hint
-    // If server returned a different format, we may need to move the session.json
+    // If server returned a different format, we need to move all session data
     let expected_account_dir = accounts_root.join(account_id_to_dirname(&actual_user_id));
     if account_dir != expected_account_dir {
         eprintln!(
-            "Warning: Server returned user ID '{}' which differs from hint '{}'. Moving session files...",
+            "Warning: Server returned user ID '{}' which differs from hint '{}'. Moving session data...",
             actual_user_id, account_id_hint
         );
-        fs::create_dir_all(expected_account_dir.join("meta"))?;
-        let new_session_path = expected_account_dir.join("meta/session.json");
-        fs::rename(&session_path, &new_session_path).with_context(|| {
-            format!(
-                "Failed to move session.json to {}",
-                new_session_path.display()
-            )
-        })?;
-        // Remove old account_dir if empty
-        let _ = fs::remove_dir_all(&account_dir);
+        // Move the entire account directory (including sdk/, meta/, etc.) to the expected location
+        if !expected_account_dir.exists() {
+            fs::rename(&account_dir, &expected_account_dir).with_context(|| {
+                format!(
+                    "Failed to move account directory from {} to {}",
+                    account_dir.display(),
+                    expected_account_dir.display()
+                )
+            })?;
+        } else {
+            eprintln!(
+                "Warning: Target account directory {} already exists; not moving {}.",
+                expected_account_dir.display(),
+                account_dir.display()
+            );
+        }
     }
 
     Ok((client, actual_user_id, false))
