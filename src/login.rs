@@ -173,6 +173,23 @@ pub async fn login_with_credentials(
         session.tokens.refresh_token.clone(),
     )?;
 
+    // Ensure the on-disk account directory matches the actual user ID returned by the server.
+    // This handles cases where the server returns a different or more canonical user ID than
+    // the hint derived from the user input (e.g., different homeserver or normalization).
+    if actual_user_id != account_id_hint {
+        let correct_account_dir = accounts_root.join(account_id_to_dirname(&actual_user_id));
+
+        if correct_account_dir != account_dir && !correct_account_dir.exists() {
+            fs::rename(&account_dir, &correct_account_dir).with_context(|| {
+                format!(
+                    "Failed to move account directory from {} to {}",
+                    account_dir.display(),
+                    correct_account_dir.display()
+                )
+            })?;
+        }
+    }
+
     Ok((client, actual_user_id, false))
 }
 
