@@ -176,6 +176,58 @@ pub async fn run(user_id_flag: Option<String>) -> Result<()> {
                 println!("  Credentials: ERROR (failed to load)");
             }
         }
+
+        // Display SDK coverage stats
+        match crate::crawl_db::CrawlDb::init(&account_dir) {
+            Ok(db) => {
+                match db.room_count() {
+                    Ok(count) => {
+                        println!("  Crawled rooms: {}", count);
+                    }
+                    Err(e) => {
+                        eprintln!("  Error reading room count: {}", e);
+                    }
+                }
+
+                match db.fully_crawled_room_count() {
+                    Ok(count) => {
+                        println!("  Fully crawled rooms: {}", count);
+                    }
+                    Err(e) => {
+                        eprintln!("  Error reading fully crawled count: {}", e);
+                    }
+                }
+
+                match db.get_time_window() {
+                    Ok(Some((start, end, account_creation))) => {
+                        let start_str = match start {
+                            None => {
+                                // All rooms fully crawled, use account creation time
+                                account_creation
+                                    .map(|ts| {
+                                        format!("account creation [{}]", format_timestamp(ts))
+                                    })
+                                    .unwrap_or_else(|| "account creation [unknown]".to_string())
+                            }
+                            Some(ts) => format_timestamp(ts),
+                        };
+                        let end_str = end
+                            .map(format_timestamp)
+                            .unwrap_or_else(|| "unknown".to_string());
+                        println!("  Data window: {} to {}", start_str, end_str);
+                    }
+                    Ok(None) => {
+                        println!("  Data window: (no data crawled)");
+                    }
+                    Err(e) => {
+                        eprintln!("  Error reading time window: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("  Error loading crawl database: {}", e);
+            }
+        }
     }
     Ok(())
 }
@@ -211,5 +263,18 @@ async fn check_cross_signing_status(
         matrix_sdk::encryption::VerificationState::Unknown => {
             Ok("⚠ Device verification unknown".to_string())
         }
+    }
+}
+
+fn format_timestamp(ts_millis: i64) -> String {
+    use std::time::UNIX_EPOCH;
+    let duration = std::time::Duration::from_millis(ts_millis as u64);
+    let system_time = UNIX_EPOCH + duration;
+    match system_time.duration_since(UNIX_EPOCH) {
+        Ok(_) => {
+            let datetime: chrono::DateTime<chrono::Utc> = system_time.into();
+            datetime.format("%Y-%m-%d %H:%M:%S").to_string()
+        }
+        Err(_) => "invalid timestamp".to_string(),
     }
 }

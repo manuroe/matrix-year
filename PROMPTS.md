@@ -161,3 +161,15 @@
 3. Update the code to make it. We will start first with the recovery key path. SAS emoji will be managed after
 
 > ... Too many. It lost the context
+
+## PR: Two-stage crawl with live progress UI
+
+Context lost again. Let's use the first commit generated message:
+- Implement sliding sync room discovery (Stage 1)
+- Add parallel event pagination (Stage 2, 8 concurrent rooms)
+- Replace manual ANSI escapes with indicatif for clean terminal UI
+- Show spinners per room with event count and oldest timestamp
+- Sticky overall progress bar at bottom
+- Fix skip logic bug: check both old and new end coverage
+- Add comprehensive unit tests for edge cases
+- Update CLI and AGENTS.md documentation

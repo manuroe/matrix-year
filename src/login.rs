@@ -144,7 +144,7 @@ pub async fn login_with_credentials(
     client
         .matrix_auth()
         .login_username(user_input, password.trim())
-        .initial_device_display_name("my-cli")
+        .initial_device_display_name("matrix-year-cli")
         .send()
         .await
         .context("login failed")?;

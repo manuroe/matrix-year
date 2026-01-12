@@ -36,28 +36,79 @@ Key principles:
 
 ### Purpose
 
-The crawler is responsible for fetching Matrix data and storing it locally in a resumable, incremental way.
+The crawler fetches Matrix data in two distinct steps:
 
-It must:
+1. **Room discovery & latest events**: Fetch the list of joined rooms and the latest event in each room
+2. **Event pagination**: Backfill historical events only for rooms that need them based on the requested time window
 
-- Be restartable at any time
-- Never re-fetch data unnecessarily
-- Never depend on renderers
+Raw events are stored in the Matrix SDK's encrypted database; the crawler references them without transforming content.
 
 ### Inputs
 
 - Matrix credentials (via config)
-- Optional filters (rooms, date ranges)
+- Time window to crawl (e.g., `2025`, `2025-03`, `life`)
 
 ### Outputs
 
-- Raw Matrix events
-- Crawl metadata (progress, cursors)
+- Raw Matrix events (stored in SDK database)
+- Crawl metadata per room (oldest/newest event IDs and timestamps, fully-crawled flag)
 
 ### Rules
 
 - Crawling **must not compute stats**
 - Crawling **must not transform message content**
+- Always crawl in two stages: discovery first, then conditional pagination
+
+---
+
+## 2.1 Stage 1: Room Discovery & Latest Events (Sliding Sync)
+
+The first stage uses **sliding sync** to discover rooms and capture the latest event in each:
+
+- **Sliding sync mode**: Growing mode with batch size 50 (fetches 50 rooms at a time)
+- **Timeline limit**: 1 event per room (to capture the latest event only)
+- **Room list**: Populates `client.joined_rooms()` with all joined rooms
+- **Latest event extraction**: After sync completes, queries the event cache for the newest event in each room
+- **Event cache subscription**: Subscribes the global event cache so room caches are available for query
+
+This stage is fast and deterministic: it tells us what rooms exist and what the latest event is in each.
+
+---
+
+## 2.2 Stage 2: Event Pagination (Event Cache)
+
+The second stage runs **only for rooms that need it**:
+
+- **Skip decision**: Uses crawl metadata and the latest event from Stage 1 to decide if pagination is necessary
+  - Skip if the room's oldest known event is before the window start, newest event is past the window end, and the room is fully crawled
+  - Skip if the room is a virgin room (never crawled) and its latest event is before the window
+  - Otherwise, paginate backward to fill gaps
+- **Pagination method**: Uses the event cache's `run_backwards_once(100)` to fetch events in batches of 100
+  - Each batch is processed immediately (aggregating stats: oldest, newest, event count, user message count)
+  - Continues until reaching the room's creation or the window start
+- **Continuous view**: Pagination always starts from the latest event discovered in Stage 1, ensuring a continuous view of events in the SDK database
+- **Event cache optimization**: The SDK's event cache automatically manages deduplication, encryption, and network requests
+- **Parallel execution**: Multiple rooms are paginated concurrently (MAX_CONCURRENCY = 8) for performance
+- **Fancy terminal UI**: Live progress shown with animated spinners per room, completed rooms printed to scrollback, overall progress bar sticky at bottom
+
+### Crawl Metadata Database
+
+Each account keeps a small, local database to make crawling resumable and to avoid redundant pagination. It records, per room:
+
+- Oldest event discovered so far (id + timestamp)
+- Newest event discovered so far (id + timestamp)
+- Whether the room has been fully back‑paginated to its beginning
+
+How it's used during pagination:
+
+- Rooms with no chance of containing events in the requested window are skipped.
+- If the newest event we know matches the server's latest for that room and we've covered the old end of the window, we skip pagination.
+- If we haven't reached the room's beginning and the window might extend further back, we continue back‑pagination until the window start or room creation.
+
+Notes:
+
+- This metadata contains no message content; raw events remain in the Matrix SDK's encrypted store.
+- The storage is an implementation detail; the behavior above is the contract renderers and other modules can rely on.
 
 ---
 
@@ -125,12 +176,33 @@ The abstraction allows switching storage backends (keychain, encrypted files, et
 
 ---
 
+### Crawl Metadata Database
+
+Each account keeps a small, local database to make crawling resumable and to avoid redundant pagination. It records, per room:
+
+- Oldest event discovered so far (id + timestamp)
+- Newest event discovered so far (id + timestamp)
+- Whether the room has been fully back‑paginated to its beginning
+
+How it’s used during a crawl:
+
+- Rooms with no chance of containing events in the requested window are skipped.
+- If the newest event we know matches the server’s latest for that room, we typically skip re‑crawling the “new end.”
+- If we haven’t reached the room’s beginning and the window might extend further back, we continue back‑pagination until the window start or room creation.
+
+Notes:
+
+- This metadata contains no message content; raw events remain in the Matrix SDK’s encrypted store.
+- The storage is an implementation detail; the behavior above is the contract renderers and other modules can rely on.
+
+---
+
 ### Stats Cache (SQLite)
 
 Each account has a **separate SQLite database for derived statistics**:
 
 ```text
-accounts/<account>/db.sqlite
+accounts/<account>/stats.sqlite  (future - currently using db.sqlite)
 ```
 
 Purpose:
@@ -316,10 +388,20 @@ This command:
 **Crawl Matrix data:**
 
 ```bash
-my crawl                                    # Crawl all logged-in accounts
-my crawl --user-id @alice:example.org       # Crawl specific account
-my crawl --until 2025-01-01                 # Crawl events with timestamps up to and including this date
+my crawl <window>                           # Crawl all logged-in accounts
+my crawl <window> --user-id @alice:example.org  # Crawl specific account
 ```
+
+Windows: `2025`, `2025-03`, `2025-W12`, `2025-03-15`, `life`
+
+**Reset data:**
+
+```bash
+my reset                                    # Reset all logged-in accounts
+my reset --user-id @alice:example.org       # Reset specific account
+```
+
+This clears crawl metadata and SDK data (event cache, crypto store) while preserving credentials.
 
 **Generate statistics:**
 
@@ -379,7 +461,7 @@ Mandatory choices:
 Agents **must respect**:
 
 - Account isolation (no cross-account reads)
-- SQLite as the single source of truth
+- Database abstraction via `CrawlDb` struct (do not access SQLite directly)
 - Incremental crawling via sync tokens
 - Session persistence via SDK sessions (access + refresh tokens)
 - Credential storage abstraction via `AccountSecretsStore`
@@ -453,6 +535,15 @@ git config user.email
 ```
 
 Use these credentials for all commits and git operations.
+
+### Pre-Change Repo Check
+
+Before editing code, always ensure the workspace is on the latest `main`:
+
+- Fetch remote state: `git fetch origin`
+- Check divergence: `git rev-list --left-right --count origin/main...HEAD`
+- If diverged, stash or commit local changes, then: `git pull --rebase origin main`
+- Verify: `git status` shows up to date with `origin/main`
 
 ---
 
