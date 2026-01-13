@@ -1,4 +1,5 @@
 use crate::login::{account_id_to_dirname, resolve_data_root};
+use crate::timefmt::format_timestamp;
 use anyhow::Result;
 use std::fs;
 use std::path::Path;
@@ -263,18 +264,5 @@ async fn check_cross_signing_status(
         matrix_sdk::encryption::VerificationState::Unknown => {
             Ok("⚠ Device verification unknown".to_string())
         }
-    }
-}
-
-fn format_timestamp(ts_millis: i64) -> String {
-    use std::time::UNIX_EPOCH;
-    let duration = std::time::Duration::from_millis(ts_millis as u64);
-    let system_time = UNIX_EPOCH + duration;
-    match system_time.duration_since(UNIX_EPOCH) {
-        Ok(_) => {
-            let datetime: chrono::DateTime<chrono::Utc> = system_time.into();
-            datetime.format("%Y-%m-%d %H:%M:%S").to_string()
-        }
-        Err(_) => "invalid timestamp".to_string(),
     }
 }

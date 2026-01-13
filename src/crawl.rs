@@ -8,6 +8,7 @@ use matrix_sdk::ruma::events::StateEventType;
 
 use std::collections::HashMap;
 use std::fs;
+use std::io::IsTerminal;
 use std::path::Path;
 
 use crate::crawl_db;
@@ -430,23 +431,7 @@ struct RoomCrawlStats {
     user_events: usize,
 }
 
-fn fmt_ts(ts: Option<i64>) -> String {
-    match ts {
-        Some(ms) => {
-            use std::time::UNIX_EPOCH;
-            let duration = std::time::Duration::from_millis(ms as u64);
-            let system_time = UNIX_EPOCH + duration;
-            match system_time.duration_since(UNIX_EPOCH) {
-                Ok(_) => {
-                    let datetime: chrono::DateTime<chrono::Utc> = system_time.into();
-                    datetime.format("%Y-%m-%d %H:%M:%S").to_string()
-                }
-                Err(_) => "invalid timestamp".to_string(),
-            }
-        }
-        None => "-".to_string(),
-    }
-}
+use crate::timefmt::format_timestamp_opt;
 
 async fn paginate_room_until<F>(
     room: &matrix_sdk::Room,
@@ -585,7 +570,7 @@ async fn crawl_rooms_parallel(
     let user_id = account_id.to_string();
 
     // Check if stderr is a TTY to decide whether to show progress
-    let is_tty = atty::is(atty::Stream::Stderr);
+    let is_tty = std::io::stderr().is_terminal();
 
     let (multi_progress, overall_pb) = if is_tty {
         let mp = MultiProgress::new();
@@ -643,7 +628,7 @@ async fn crawl_rooms_parallel(
                     move |_name: &str, oldest: Option<i64>, _newest: Option<i64>, events: usize| {
                         if let Some(ref pb) = pb {
                             let msg = if let Some(ts) = oldest {
-                                let timestamp = fmt_ts(Some(ts));
+                                let timestamp = format_timestamp_opt(Some(ts));
                                 format!(
                                     "{}: {} events from {}",
                                     room_name_for_progress, events, timestamp
@@ -667,9 +652,9 @@ async fn crawl_rooms_parallel(
                             (Some(oldest), Some(newest)) => {
                                 format!(
                                     "{} {} → {}",
-                                    fmt_ts(Some(oldest)),
+                                    format_timestamp_opt(Some(oldest)),
                                     creation_indicator,
-                                    fmt_ts(Some(newest))
+                                    format_timestamp_opt(Some(newest))
                                 )
                             }
                             _ => "unknown".to_string(),
@@ -694,9 +679,9 @@ async fn crawl_rooms_parallel(
                         (Some(oldest), Some(newest)) => {
                             format!(
                                 "{} {} →  {}",
-                                fmt_ts(Some(oldest)),
+                                format_timestamp_opt(Some(oldest)),
                                 creation_indicator,
-                                fmt_ts(Some(newest))
+                                format_timestamp_opt(Some(newest))
                             )
                         }
                         _ => "unknown".to_string(),

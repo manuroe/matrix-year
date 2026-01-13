@@ -521,6 +521,11 @@ The project includes integration tests that require live Matrix account credenti
 
 ---
 
+### Dependency hygiene
+
+- Prefer maintained crates; avoid deprecated ones (e.g., use `is-terminal` over `atty`).
+- Keep shared utilities (timestamp formatting, etc.) de-duplicated to avoid drift across modules.
+
 ## 11. Git & GitHub Workflow
 
 ### Git User Configuration

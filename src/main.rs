@@ -12,6 +12,7 @@ mod sdk;
 mod secrets;
 mod stats;
 mod status;
+mod timefmt;
 mod window;
 
 // Help text constants

@@ -77,15 +77,13 @@ my crawl <window> [--user-id <@alice:example.org>]
 - `--user-id <@alice:example.org>` — (Optional) Crawl a specific logged-in account. If omitted, crawls all logged-in accounts.
 
 **Behavior:**
-- **Stage 1:** Discovers rooms via sliding sync (fetches latest event per room).
-- **Stage 2:** Paginates backward through historical events for rooms that need data within the window.
-- Processes **8 rooms concurrently** during pagination.
-- Shows live progress with spinners per room and overall counter.
+- **Stage 1:** Discovers rooms via sliding sync (growing mode, batch size 50, 1 event per room to capture latest).
+- **Stage 2:** Paginates backward through historical events for rooms that need data within the window (batches of 100, parallel with 8 concurrent rooms).
+- Shows live progress with animated spinners per room and sticky overall counter.
 - Stores all events in the SDK's encrypted SQLite database automatically.
 
 **Sync Lifecycle:**
-- If the window **covers today** (e.g., `2026`, `2025-W25` in late June, `life`): Sync runs continuously throughout crawling to catch live messages arriving during pagination.
-- If the window is **historical** (e.g., `2024` in January 2026): Sync runs briefly to discover rooms, then stops to save bandwidth.
+- A single sliding sync session runs during crawl execution to discover rooms and capture latest events; behavior is the same for current and historical windows.
 
 **Examples:**
 
