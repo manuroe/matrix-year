@@ -57,6 +57,32 @@ impl WindowScope {
             }
         }
 
+        // Try week: "YYYY-WXX"
+        if let Some(pos) = window.find("-W") {
+            let year_str = &window[..pos];
+            let week_str = &window[pos + 2..];
+
+            if let (Ok(year), Ok(week)) = (year_str.parse::<i32>(), week_str.parse::<u32>()) {
+                if (1970..=2099).contains(&year) && (1..=53).contains(&week) {
+                    // ISO week date: find the Monday of week 1 for the year
+                    let jan_4 = NaiveDate::from_ymd_opt(year, 1, 4)
+                        .ok_or_else(|| anyhow!("Invalid year: {}", year))?;
+                    let week_1_monday = jan_4
+                        - chrono::Duration::days(jan_4.weekday().number_from_monday() as i64 - 1);
+
+                    let from = week_1_monday + chrono::Duration::days((week as i64 - 1) * 7);
+                    let to = from + chrono::Duration::days(6);
+
+                    return Ok(WindowScope {
+                        key: window.to_string(),
+                        scope_type: crate::stats::ScopeKind::Week,
+                        from,
+                        to,
+                    });
+                }
+            }
+        }
+
         // Try month: "YYYY-MM"
         if let Some((year_str, month_str)) = window.split_once('-') {
             if let (Ok(year), Ok(month)) = (year_str.parse::<i32>(), month_str.parse::<u32>()) {
@@ -80,37 +106,6 @@ impl WindowScope {
                     return Ok(WindowScope {
                         key: window.to_string(),
                         scope_type: crate::stats::ScopeKind::Month,
-                        from,
-                        to,
-                    });
-                }
-            }
-        }
-
-        // Try week: "YYYY-WXX"
-        if let Some(pos) = window.find("-W") {
-            let year_str = &window[..pos];
-            let week_str = &window[pos + 2..];
-
-            if let (Ok(year), Ok(week)) = (year_str.parse::<i32>(), week_str.parse::<u32>()) {
-                if (1970..=2099).contains(&year) && (1..=53).contains(&week) {
-                    // ISO week date: find the Monday of week 1 for the year
-                    let jan_4 = NaiveDate::from_ymd_opt(year, 1, 4)
-                        .ok_or_else(|| anyhow!("Invalid year: {}", year))?;
-                    let week_1_monday = jan_4
-                        - chrono::Duration::days(jan_4.weekday().number_from_monday() as i64 - 1);
-
-                    let from = week_1_monday + chrono::Duration::days((week as i64 - 1) * 7);
-                    let to = from + chrono::Duration::days(6);
-
-                    // Validate that the calculated dates are actually in the requested year
-                    if from.year() != year || to.year() != year {
-                        return Err(anyhow!("Invalid week for year: {}-W{:02}", year, week));
-                    }
-
-                    return Ok(WindowScope {
-                        key: window.to_string(),
-                        scope_type: crate::stats::ScopeKind::Week,
                         from,
                         to,
                     });

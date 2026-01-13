@@ -193,15 +193,12 @@ async fn crawl_account(
 
     // 4) Crawl rooms (parallel pagination, sequential DB updates)
     let total_rooms = rooms_to_crawl.len();
-    let (success_count, error_count, skipped_count) =
+    let (success_count, error_count) =
         crawl_rooms_parallel(rooms_to_crawl, window_scope, &db, account_id, total_rooms).await;
 
-    if skipped_count > 0 {
-        eprintln!("⏭️  Skipped {} rooms (already crawled)", skipped_count);
-    }
     eprintln!(
-        "✅ Crawled {} rooms ({} errors, {} skipped)",
-        success_count, error_count, skipped_count
+        "✅ Crawled {} rooms ({} errors)",
+        success_count, error_count
     );
 
     Ok(())
@@ -621,13 +618,12 @@ async fn crawl_rooms_parallel(
     db: &crawl_db::CrawlDb,
     account_id: &str,
     total_rooms: usize,
-) -> (usize, usize, usize) {
+) -> (usize, usize) {
     use futures_util::StreamExt as _;
 
     const MAX_CONCURRENCY: usize = 8;
     let mut success_count = 0usize;
     let mut error_count = 0usize;
-    let skipped_count = 0usize;
 
     let (window_start_ts, _) = window_scope.to_timestamp_range();
     let user_id = account_id.to_string();
@@ -685,7 +681,7 @@ async fn crawl_rooms_parallel(
         pb.finish_and_clear();
     }
 
-    (success_count, error_count, skipped_count)
+    (success_count, error_count)
 }
 
 fn create_progress_bars(

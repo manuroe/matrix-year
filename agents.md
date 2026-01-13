@@ -176,27 +176,6 @@ The abstraction allows switching storage backends (keychain, encrypted files, et
 
 ---
 
-### Crawl Metadata Database
-
-Each account keeps a small, local database to make crawling resumable and to avoid redundant pagination. It records, per room:
-
-- Oldest event discovered so far (id + timestamp)
-- Newest event discovered so far (id + timestamp)
-- Whether the room has been fully back‑paginated to its beginning
-
-How it’s used during a crawl:
-
-- Rooms with no chance of containing events in the requested window are skipped.
-- If the newest event we know matches the server’s latest for that room, we typically skip re‑crawling the “new end.”
-- If we haven’t reached the room’s beginning and the window might extend further back, we continue back‑pagination until the window start or room creation.
-
-Notes:
-
-- This metadata contains no message content; raw events remain in the Matrix SDK’s encrypted store.
-- The storage is an implementation detail; the behavior above is the contract renderers and other modules can rely on.
-
----
-
 ### Stats Cache (SQLite)
 
 Each account has a **separate SQLite database for derived statistics**:
