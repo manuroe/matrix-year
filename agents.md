@@ -490,6 +490,7 @@ When unsure, prefer:
 - Run `cargo fmt` and `cargo clippy --all-targets --all-features -D warnings` before merging.
 - Handle authentication errors with context; ensure session restore paths use `restore_session` with `SessionMeta` and `SessionTokens`.
 - Add focused tests when touching stats schema, rendering logic, or CLI parsing; keep example outputs up to date when behavior changes.
+- Do not use `clippy::type_complexity` suppressions; instead refactor using structs or type aliases to simplify the type signature itself.
 
 ### Integration Tests
 

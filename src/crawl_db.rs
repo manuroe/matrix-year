@@ -5,6 +5,17 @@ use anyhow::{Context, Result};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::path::Path;
 
+/// Time window available from crawled data
+#[derive(Debug, Clone)]
+pub struct TimeWindow {
+    /// Window start: None if all rooms fully_crawled, else newest oldest_event_ts
+    pub window_start: Option<i64>,
+    /// Window end: newest (latest) message across all rooms
+    pub window_end: Option<i64>,
+    /// Account creation: oldest message across all rooms
+    pub account_creation_ts: Option<i64>,
+}
+
 /// Represents crawl metadata for a single room
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -132,16 +143,13 @@ impl CrawlDb {
 
     /// Get the global time window available from crawled data
     ///
-    /// Returns (window_start_ts, window_end_ts, account_creation_ts) in milliseconds since epoch.
-    ///
     /// Window start logic:
     /// - If all rooms are fully_crawled, return None (account creation)
     /// - Otherwise, return the newest oldest_event_ts among non-fully-crawled rooms
     ///
     /// Window end: newest (latest) message across all rooms (MAX newest_event_ts)
     /// Account creation: oldest message across all rooms (MIN oldest_event_ts)
-    #[allow(clippy::type_complexity)]
-    pub fn get_time_window(&self) -> Result<Option<(Option<i64>, Option<i64>, Option<i64>)>> {
+    pub fn get_time_window(&self) -> Result<Option<TimeWindow>> {
         let mut stmt = self.conn.prepare(
             "SELECT COUNT(*), SUM(CASE WHEN fully_crawled = 0 THEN 1 ELSE 0 END)
              FROM room_crawl_metadata",
@@ -183,6 +191,10 @@ impl CrawlDb {
         )?;
         let account_creation_ts: Option<i64> = stmt.query_row([], |row| row.get(0))?;
 
-        Ok(Some((window_start, window_end, account_creation_ts)))
+        Ok(Some(TimeWindow {
+            window_start,
+            window_end,
+            account_creation_ts,
+        }))
     }
 }

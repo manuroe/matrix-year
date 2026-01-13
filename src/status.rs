@@ -200,11 +200,12 @@ pub async fn run(user_id_flag: Option<String>) -> Result<()> {
                 }
 
                 match db.get_time_window() {
-                    Ok(Some((start, end, account_creation))) => {
-                        let start_str = match start {
+                    Ok(Some(window)) => {
+                        let start_str = match window.window_start {
                             None => {
                                 // All rooms fully crawled, use account creation time
-                                account_creation
+                                window
+                                    .account_creation_ts
                                     .map(|ts| {
                                         format!("account creation [{}]", format_timestamp(ts))
                                     })
@@ -212,7 +213,8 @@ pub async fn run(user_id_flag: Option<String>) -> Result<()> {
                             }
                             Some(ts) => format_timestamp(ts),
                         };
-                        let end_str = end
+                        let end_str = window
+                            .window_end
                             .map(format_timestamp)
                             .unwrap_or_else(|| "unknown".to_string());
                         println!("  Data window: {} to {}", start_str, end_str);
