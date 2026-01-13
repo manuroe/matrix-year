@@ -2,13 +2,18 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+mod crawl;
+mod crawl_db;
 mod login;
 mod logout;
 mod renderer;
+mod reset;
 mod sdk;
 mod secrets;
 mod stats;
 mod status;
+mod timefmt;
+mod window;
 
 // Help text constants
 const HELP_MAIN: &str = "\
@@ -83,6 +88,20 @@ enum Commands {
         #[arg(long)]
         user_id: Option<String>,
     },
+    /// Crawl Matrix messages into the SDK database for a time window
+    Crawl {
+        /// Time window (e.g. 2025, 2025-03, 2025-W12, 2025-03-15, life)
+        window: String,
+        /// Matrix user id (e.g. @alice:example.org). If omitted, crawl all accounts.
+        #[arg(long)]
+        user_id: Option<String>,
+    },
+    /// Reset crawl metadata and SDK data (keeps credentials)
+    Reset {
+        /// Matrix user id (e.g. @alice:example.org). If omitted, reset all accounts.
+        #[arg(long)]
+        user_id: Option<String>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -122,6 +141,20 @@ fn main() -> Result<()> {
                 tokio::runtime::Runtime::new()
                     .context("Failed to create Tokio runtime")?
                     .block_on(status::run(user_id))?;
+                return Ok(());
+            }
+            Commands::Crawl { window, user_id } => {
+                // Run crawl
+                tokio::runtime::Runtime::new()
+                    .context("Failed to create Tokio runtime")?
+                    .block_on(crawl::run(window, user_id))?;
+                return Ok(());
+            }
+            Commands::Reset { user_id } => {
+                // Run reset
+                tokio::runtime::Runtime::new()
+                    .context("Failed to create Tokio runtime")?
+                    .block_on(reset::run(user_id))?;
                 return Ok(());
             }
         }

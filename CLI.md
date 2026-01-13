@@ -58,6 +58,91 @@ my status
 my status
 ```
 
+### `crawl`
+
+Download Matrix messages from your joined rooms into the local SDK database. The crawl command uses **sliding sync** for efficient room discovery and paginated timeline access to incrementally fetch historical messages.
+
+**Usage:**
+```bash
+my crawl <window> [--user-id <@alice:example.org>]
+```
+
+**Arguments:**
+- `<window>` — (Mandatory) Temporal scope for crawling. Accepts:
+  - `2025` — Calendar year (e.g., all of 2025)
+  - `2025-03` — Month (e.g., March 2025)
+  - `2025-W12` — ISO week (e.g., week 12 of 2025)
+  - `2025-03-15` — Specific day
+  - `life` — All messages from epoch onward (entire message history)
+- `--user-id <@alice:example.org>` — (Optional) Crawl a specific logged-in account. If omitted, crawls all logged-in accounts.
+
+**Behavior:**
+- **Stage 1:** Discovers rooms via sliding sync (growing mode, batch size 50, 1 event per room to capture latest).
+- **Stage 2:** Paginates backward through historical events for rooms that need data within the window (batches of 100, parallel with 8 concurrent rooms).
+- Shows live progress with animated spinners per room and sticky overall counter.
+- Stores all events in the SDK's encrypted SQLite database automatically.
+
+**Sync Lifecycle:**
+- A single sliding sync session runs during crawl execution to discover rooms and capture latest events; behavior is the same for current and historical windows.
+
+**Examples:**
+
+Crawl the current year:
+```bash
+my crawl 2025
+```
+
+Crawl a specific month:
+```bash
+my crawl 2025-03
+```
+
+Crawl a specific week:
+```bash
+my crawl 2025-W12
+```
+
+Crawl a specific day:
+```bash
+my crawl 2025-03-15
+```
+
+Crawl entire message history:
+```bash
+my crawl life
+```
+
+Crawl a specific account (if multiple are logged in):
+```bash
+my crawl 2025 --user-id @alice:example.org
+```
+
+
+### `reset`
+
+Clear all crawl metadata and SDK data while preserving account credentials. This is useful for troubleshooting, testing fresh crawls, or resetting after SDK database corruption. **Note:** This does not log you out—credentials remain intact.
+
+**Usage:**
+```bash
+my reset [--user-id <@alice:example.org>]
+```
+
+**Arguments:**
+- `--user-id <@alice:example.org>` — (Optional) Reset a specific logged-in account. If omitted, resets all logged-in accounts.
+
+
+**Examples:**
+
+Reset all accounts:
+```bash
+my reset
+```
+
+Reset a specific account:
+```bash
+my reset --user-id @alice:example.org
+```
+
 ### `--render`
 
 Generate windowed reports (year, month, week, day, life) in one or more formats.

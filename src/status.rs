@@ -1,4 +1,5 @@
 use crate::login::{account_id_to_dirname, resolve_data_root};
+use crate::timefmt::format_timestamp;
 use anyhow::Result;
 use std::fs;
 use std::path::Path;
@@ -174,6 +175,60 @@ pub async fn run(user_id_flag: Option<String>) -> Result<()> {
                     if cred_path.exists() { "OK" } else { "MISSING" }
                 );
                 println!("  Credentials: ERROR (failed to load)");
+            }
+        }
+
+        // Display SDK coverage stats
+        match crate::crawl_db::CrawlDb::init(&account_dir) {
+            Ok(db) => {
+                match db.room_count() {
+                    Ok(count) => {
+                        println!("  Crawled rooms: {}", count);
+                    }
+                    Err(e) => {
+                        eprintln!("  Error reading room count: {}", e);
+                    }
+                }
+
+                match db.fully_crawled_room_count() {
+                    Ok(count) => {
+                        println!("  Fully crawled rooms: {}", count);
+                    }
+                    Err(e) => {
+                        eprintln!("  Error reading fully crawled count: {}", e);
+                    }
+                }
+
+                match db.get_time_window() {
+                    Ok(Some(window)) => {
+                        let start_str = match window.window_start {
+                            None => {
+                                // All rooms fully crawled, use account creation time
+                                window
+                                    .account_creation_ts
+                                    .map(|ts| {
+                                        format!("account creation [{}]", format_timestamp(ts))
+                                    })
+                                    .unwrap_or_else(|| "account creation [unknown]".to_string())
+                            }
+                            Some(ts) => format_timestamp(ts),
+                        };
+                        let end_str = window
+                            .window_end
+                            .map(format_timestamp)
+                            .unwrap_or_else(|| "unknown".to_string());
+                        println!("  Data window: {} to {}", start_str, end_str);
+                    }
+                    Ok(None) => {
+                        println!("  Data window: (no data crawled)");
+                    }
+                    Err(e) => {
+                        eprintln!("  Error reading time window: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("  Error loading crawl database: {}", e);
             }
         }
     }
