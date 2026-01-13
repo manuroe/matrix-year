@@ -63,17 +63,15 @@ impl WindowScope {
                 if (1970..=2099).contains(&year) && (1..=12).contains(&month) {
                     let from = NaiveDate::from_ymd_opt(year, month, 1)
                         .ok_or_else(|| anyhow!("Invalid month: {}-{:02}", year, month))?;
-                    // Last day of month
+                    // Last day of month: compute first day of next month, then go back one day
                     let to = if month == 12 {
                         NaiveDate::from_ymd_opt(year + 1, 1, 1)
-                            .unwrap()
-                            .pred_opt()
-                            .unwrap()
+                            .and_then(|d| d.pred_opt())
+                            .ok_or_else(|| anyhow!("Failed to calculate end of December {}", year))?
                     } else {
                         NaiveDate::from_ymd_opt(year, month + 1, 1)
-                            .unwrap()
-                            .pred_opt()
-                            .unwrap()
+                            .and_then(|d| d.pred_opt())
+                            .ok_or_else(|| anyhow!("Failed to calculate end of month {}-{:02}", year, month))?
                     };
                     return Ok(WindowScope {
                         key: window.to_string(),
@@ -197,6 +195,20 @@ mod tests {
         let ws = WindowScope::parse("2025-12").unwrap();
         assert_eq!(ws.from, NaiveDate::from_ymd_opt(2025, 12, 1).unwrap());
         assert_eq!(ws.to, NaiveDate::from_ymd_opt(2025, 12, 31).unwrap());
+    }
+
+    #[test]
+    fn test_parse_month_february_leap_year() {
+        let ws = WindowScope::parse("2024-02").unwrap();
+        assert_eq!(ws.from, NaiveDate::from_ymd_opt(2024, 2, 1).unwrap());
+        assert_eq!(ws.to, NaiveDate::from_ymd_opt(2024, 2, 29).unwrap());
+    }
+
+    #[test]
+    fn test_parse_month_february_non_leap_year() {
+        let ws = WindowScope::parse("2025-02").unwrap();
+        assert_eq!(ws.from, NaiveDate::from_ymd_opt(2025, 2, 1).unwrap());
+        assert_eq!(ws.to, NaiveDate::from_ymd_opt(2025, 2, 28).unwrap());
     }
 
     #[test]
