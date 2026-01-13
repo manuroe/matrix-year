@@ -173,3 +173,16 @@ Context lost again. Let's use the first commit generated message:
 - Fix skip logic bug: check both old and new end coverage
 - Add comprehensive unit tests for edge cases
 - Update CLI and AGENTS.md documentation
+
+## PR Review: Address Copilot Comments
+
+### Review Issues Addressed
+
+1. **Replace deprecated atty crate** → Switched to `is-terminal` 0.4 (maintained alternative)
+2. **Remove unused lazy_static** → Removed unused dependency
+3. **Deduplicate timestamp formatting** → Extracted to shared `src/timefmt.rs` module
+4. **Use non-deprecated chrono APIs** → Replaced deprecated methods with `TimeZone::timestamp_millis_opt`
+5. **Update CLI.md sync description** → Clarified that behavior is same for current/historical windows
+6. **Add dependency hygiene guidance** → Updated AGENTS.md to recommend maintained crates
+
+All 36 tests passing. Ready for review.
