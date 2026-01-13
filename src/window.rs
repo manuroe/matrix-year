@@ -67,11 +67,15 @@ impl WindowScope {
                     let to = if month == 12 {
                         NaiveDate::from_ymd_opt(year + 1, 1, 1)
                             .and_then(|d| d.pred_opt())
-                            .ok_or_else(|| anyhow!("Failed to calculate end of December {}", year))?
+                            .ok_or_else(|| {
+                                anyhow!("Failed to calculate end of December {}", year)
+                            })?
                     } else {
                         NaiveDate::from_ymd_opt(year, month + 1, 1)
                             .and_then(|d| d.pred_opt())
-                            .ok_or_else(|| anyhow!("Failed to calculate end of month {}-{:02}", year, month))?
+                            .ok_or_else(|| {
+                                anyhow!("Failed to calculate end of month {}-{:02}", year, month)
+                            })?
                     };
                     return Ok(WindowScope {
                         key: window.to_string(),
@@ -100,7 +104,7 @@ impl WindowScope {
                     let to = from + chrono::Duration::days(6);
 
                     // Validate that the calculated dates are actually in the requested year
-                    if from.year() != year && to.year() != year {
+                    if from.year() != year || to.year() != year {
                         return Err(anyhow!("Invalid week for year: {}-W{:02}", year, week));
                     }
 
@@ -142,7 +146,6 @@ impl WindowScope {
     /// Returns (start_ts, end_ts) where:
     /// - start_ts is None for "life" scope (beginning of time), otherwise midnight UTC of from date
     /// - end_ts is end of day UTC (23:59:59.999) of to date
-    #[allow(clippy::type_complexity)]
     pub fn to_timestamp_range(&self) -> (Option<i64>, i64) {
         let start_ts = if self.scope_type == crate::stats::ScopeKind::Life {
             None

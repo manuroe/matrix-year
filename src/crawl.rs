@@ -13,6 +13,7 @@ use std::path::Path;
 
 use crate::crawl_db;
 use crate::login::{account_id_to_dirname, resolve_data_root};
+use crate::timefmt::format_timestamp_opt;
 use crate::window::WindowScope;
 
 // Inspired from https://github.com/matrix-org/matrix-rust-sdk/blob/matrix-sdk-ui-0.16.0/crates/matrix-sdk-ui/src/room_list_service/mod.rs#L81
@@ -166,14 +167,19 @@ async fn crawl_account(
             if !rooms_to_crawl.iter().any(|r| r.room_id() == room.room_id()) {
                 // This room was skipped, record that we've seen it
                 if let Some((event_id, event_ts)) = latest_events.get(&room_id_str) {
-                    let _ = db.update_room_metadata(
+                    if let Err(e) = db.update_room_metadata(
                         &room_id_str,
                         Some(event_id.clone()),
                         Some(*event_ts),
                         Some(event_id.clone()),
                         Some(*event_ts),
                         false,
-                    );
+                    ) {
+                        eprintln!(
+                            "warning: failed to update room metadata for room {}: {}",
+                            room_id_str, e
+                        );
+                    }
                 }
             }
         }
@@ -357,14 +363,22 @@ fn select_rooms_to_crawl(
     let mut rooms = Vec::new();
     for room in joined_rooms.iter() {
         let room_id_str = room.room_id().to_string();
-        let needs_crawl = should_crawl_room(
+        let needs_crawl = match should_crawl_room(
             db,
             &room_id_str,
             window_start_ts,
             window_end_ts.expect("window_end_ts required"),
             latest_events.get(&room_id_str),
-        )
-        .unwrap_or(true);
+        ) {
+            Ok(value) => value,
+            Err(err) => {
+                eprintln!(
+                    "Error determining whether to crawl room {}: {}",
+                    room_id_str, err
+                );
+                false
+            }
+        };
         if needs_crawl {
             rooms.push(room.clone());
         }
@@ -431,8 +445,6 @@ struct RoomCrawlStats {
     user_events: usize,
 }
 
-use crate::timefmt::format_timestamp_opt;
-
 async fn get_room_display_name(room: &matrix_sdk::Room) -> String {
     room.display_name()
         .await
@@ -463,11 +475,7 @@ async fn setup_event_cache_and_capture_latest(
         .flatten()
         .unzip();
 
-    Ok((
-        room_event_cache,
-        newest_event_id_initial,
-        newest_ts_initial,
-    ))
+    Ok((room_event_cache, newest_event_id_initial, newest_ts_initial))
 }
 
 struct PaginationAggregates {
@@ -938,8 +946,8 @@ mod tests {
 
         let latest_from_server = ("evt_match".to_owned(), 2_000);
         let needs = should_crawl_room(&db, "!room", Some(1_000), 3_000, Some(&latest_from_server))?;
-        // We expect true because we haven't covered the old end of the window.
-        // Current implementation returns false due to an early return when newest matches.
+        // We expect true because we haven't covered the old end of the window; this test
+        // ensures we still crawl to cover older messages even when the newest event matches.
         assert!(
             needs,
             "should still crawl to cover older messages even if newest matches"
