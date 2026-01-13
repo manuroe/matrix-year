@@ -433,28 +433,25 @@ struct RoomCrawlStats {
 
 use crate::timefmt::format_timestamp_opt;
 
-async fn paginate_room_until<F>(
-    room: &matrix_sdk::Room,
-    window_start_ts: Option<i64>,
-    user_id: &str,
-    progress_callback: F,
-) -> Result<RoomCrawlStats>
-where
-    F: Fn(&str, Option<i64>, Option<i64>, usize),
-{
-    let room_name = room
-        .display_name()
+async fn get_room_display_name(room: &matrix_sdk::Room) -> String {
+    room.display_name()
         .await
         .map(|name| name.to_string())
-        .unwrap_or_else(|_| room.room_id().to_string());
+        .unwrap_or_else(|_| room.room_id().to_string())
+}
 
-    // Use event cache API for direct access to events
+async fn setup_event_cache_and_capture_latest(
+    room: &matrix_sdk::Room,
+) -> Result<(
+    matrix_sdk::event_cache::RoomEventCache,
+    Option<String>,
+    Option<i64>,
+)> {
     let (room_event_cache, _drop_handles) = room
         .event_cache()
         .await
         .context("Failed to get event cache")?;
 
-    // Capture the latest event BEFORE pagination (which goes backward in time)
     let (newest_event_id_initial, newest_ts_initial) = room_event_cache
         .rfind_map_event_in_memory_by(|event, _prev| {
             let event_id = event.event_id()?;
@@ -466,9 +463,37 @@ where
         .flatten()
         .unzip();
 
+    Ok((
+        room_event_cache,
+        newest_event_id_initial,
+        newest_ts_initial,
+    ))
+}
+
+struct PaginationAggregates {
+    fully_crawled: bool,
+    oldest_event_id: Option<String>,
+    oldest_ts: Option<i64>,
+    newest_event_id: Option<String>,
+    newest_ts: Option<i64>,
+    total_events: usize,
+    user_events: usize,
+}
+
+async fn paginate_and_aggregate_stats<F>(
+    room_event_cache: &matrix_sdk::event_cache::RoomEventCache,
+    window_start_ts: Option<i64>,
+    user_id: &str,
+    room_name: &str,
+    newest_event_id_initial: Option<String>,
+    newest_ts_initial: Option<i64>,
+    progress_callback: F,
+) -> Result<PaginationAggregates>
+where
+    F: Fn(&str, Option<i64>, Option<i64>, usize),
+{
     let pagination = room_event_cache.pagination();
 
-    // Aggregate stats while paginating to avoid holding all events in memory at once
     let mut fully_crawled = false;
     let mut stop_at_window = false;
     let mut oldest_event_id: Option<String> = None;
@@ -484,8 +509,6 @@ where
             .await
             .context("Pagination failed")?;
 
-        // Check reached_start BEFORE checking if events is empty
-        // because SDK may return empty batch with reached_start=true
         if outcome.reached_start {
             fully_crawled = true;
             break;
@@ -499,7 +522,7 @@ where
             let event_id_str = event.event_id().map(|id| id.to_string());
 
             let Some(ts) = event.timestamp() else {
-                continue; // Skip events without timestamp
+                continue;
             };
             let ts_millis: i64 = ts.get().into();
 
@@ -516,8 +539,6 @@ where
                 oldest_event_id = event_id_str.clone();
             }
 
-            // During backward pagination, we only update newest if we find something newer
-            // (which shouldn't happen, but keep it for safety)
             if newest_ts.is_none_or(|new_ts| ts_millis > new_ts) {
                 newest_ts = Some(ts_millis);
                 newest_event_id = event_id_str;
@@ -530,24 +551,59 @@ where
             }
         }
 
-        // Call progress callback after each batch
-        progress_callback(&room_name, oldest_ts, newest_ts, total_events);
+        progress_callback(room_name, oldest_ts, newest_ts, total_events);
 
         if stop_at_window {
             break;
         }
     }
 
-    Ok(RoomCrawlStats {
-        room_id: room.room_id().to_string(),
+    Ok(PaginationAggregates {
+        fully_crawled,
         oldest_event_id,
         oldest_ts,
         newest_event_id,
         newest_ts,
-        fully_crawled,
-        room_name,
         total_events,
         user_events,
+    })
+}
+
+async fn paginate_room_until<F>(
+    room: &matrix_sdk::Room,
+    window_start_ts: Option<i64>,
+    user_id: &str,
+    progress_callback: F,
+) -> Result<RoomCrawlStats>
+where
+    F: Fn(&str, Option<i64>, Option<i64>, usize),
+{
+    let room_name = get_room_display_name(room).await;
+
+    let (room_event_cache, newest_event_id_initial, newest_ts_initial) =
+        setup_event_cache_and_capture_latest(room).await?;
+
+    let aggregates = paginate_and_aggregate_stats(
+        &room_event_cache,
+        window_start_ts,
+        user_id,
+        &room_name,
+        newest_event_id_initial,
+        newest_ts_initial,
+        progress_callback,
+    )
+    .await?;
+
+    Ok(RoomCrawlStats {
+        room_id: room.room_id().to_string(),
+        oldest_event_id: aggregates.oldest_event_id,
+        oldest_ts: aggregates.oldest_ts,
+        newest_event_id: aggregates.newest_event_id,
+        newest_ts: aggregates.newest_ts,
+        fully_crawled: aggregates.fully_crawled,
+        room_name,
+        total_events: aggregates.total_events,
+        user_events: aggregates.user_events,
     })
 }
 
@@ -559,34 +615,16 @@ async fn crawl_rooms_parallel(
     total_rooms: usize,
 ) -> (usize, usize, usize) {
     use futures_util::StreamExt as _;
-    use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
     const MAX_CONCURRENCY: usize = 8;
     let mut success_count = 0usize;
     let mut error_count = 0usize;
-    let skipped_count = 0usize; // already filtered out
+    let skipped_count = 0usize;
 
     let (window_start_ts, _) = window_scope.to_timestamp_range();
     let user_id = account_id.to_string();
 
-    // Check if stderr is a TTY to decide whether to show progress
-    let is_tty = std::io::stderr().is_terminal();
-
-    let (multi_progress, overall_pb) = if is_tty {
-        let mp = MultiProgress::new();
-        // Overall progress bar at the bottom
-        let overall_style = ProgressStyle::default_bar()
-            .template("[{bar:40.cyan/blue}] {pos}/{len} rooms ({percent}%)")
-            .unwrap()
-            .progress_chars("█▓░");
-        let overall = mp.add(ProgressBar::new(total_rooms as u64));
-        overall.set_style(overall_style);
-        (Some(mp), Some(overall))
-    } else {
-        (None, None)
-    };
-
-    // Clone overall_pb for use in the stream
+    let (multi_progress, overall_pb) = create_progress_bars(total_rooms);
     let overall_for_stream = overall_pb.clone();
 
     let mut stream = futures_util::stream::iter(rooms)
@@ -594,106 +632,7 @@ async fn crawl_rooms_parallel(
             let uid = user_id.clone();
             let mp = multi_progress.clone();
             let overall = overall_for_stream.clone();
-            async move {
-                let room_name = room
-                    .display_name()
-                    .await
-                    .ok()
-                    .map(|n| n.to_string())
-                    .unwrap_or_else(|| room.room_id().to_string());
-
-                // Create progress bar for this room
-                let pb = if let Some(ref mp) = mp {
-                    let style = ProgressStyle::default_spinner()
-                        .template("{spinner:.green} {msg}")
-                        .unwrap()
-                        .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏");
-                    let pb = if let Some(ref overall_bar) = overall {
-                        mp.insert_before(overall_bar, ProgressBar::new_spinner())
-                    } else {
-                        mp.add(ProgressBar::new_spinner())
-                    };
-                    pb.set_style(style);
-                    pb.set_message(format!("{}: 0 events", room_name));
-                    pb.enable_steady_tick(std::time::Duration::from_millis(100));
-                    Some(pb)
-                } else {
-                    None
-                };
-
-                // Progress callback to update progress bar
-                let progress_callback = {
-                    let pb = pb.clone();
-                    let room_name_for_progress = room_name.clone();
-                    move |_name: &str, oldest: Option<i64>, _newest: Option<i64>, events: usize| {
-                        if let Some(ref pb) = pb {
-                            let msg = if let Some(ts) = oldest {
-                                let timestamp = format_timestamp_opt(Some(ts));
-                                format!(
-                                    "{}: {} events from {}",
-                                    room_name_for_progress, events, timestamp
-                                )
-                            } else {
-                                format!("{}: {} events", room_name_for_progress, events)
-                            };
-                            pb.set_message(msg);
-                        }
-                    }
-                };
-
-                let stats_res =
-                    paginate_room_until(&room, window_start_ts, &uid, progress_callback).await;
-
-                // Print to scrollback and clear progress bar
-                if let Some(ref pb) = pb {
-                    if let Ok(stats) = &stats_res {
-                        let creation_indicator = if stats.fully_crawled { "🌱" } else { " " };
-                        let time_range = match (stats.oldest_ts, stats.newest_ts) {
-                            (Some(oldest), Some(newest)) => {
-                                format!(
-                                    "{} {} → {}",
-                                    format_timestamp_opt(Some(oldest)),
-                                    creation_indicator,
-                                    format_timestamp_opt(Some(newest))
-                                )
-                            }
-                            _ => "unknown".to_string(),
-                        };
-                        // Print to scrollback
-                        pb.println(format!("  ✓ {}", stats.room_name));
-                        pb.println(format!("\t📅 {}", time_range));
-                        pb.println(format!(
-                            "\t📊 {} events ({} from you)",
-                            stats.total_events, stats.user_events
-                        ));
-                        pb.finish_and_clear();
-                    } else {
-                        pb.println(format!("  ✗ {} | ❌ failed", room_name));
-                        pb.finish_and_clear();
-                    }
-                } else if let Ok(stats) = &stats_res {
-                    // Non-TTY output
-                    eprintln!("  ✓ {}", stats.room_name);
-                    let creation_indicator = if stats.fully_crawled { "🌱" } else { " " };
-                    let time_range = match (stats.oldest_ts, stats.newest_ts) {
-                        (Some(oldest), Some(newest)) => {
-                            format!(
-                                "{} {} →  {}",
-                                format_timestamp_opt(Some(oldest)),
-                                creation_indicator,
-                                format_timestamp_opt(Some(newest))
-                            )
-                        }
-                        _ => "unknown".to_string(),
-                    };
-                    eprintln!("\t📅 {}", time_range);
-                    eprintln!(
-                        "\t📊 {} events ({} from you)",
-                        stats.total_events, stats.user_events
-                    );
-                }
-                (room, stats_res, pb)
-            }
+            crawl_single_room(room, window_start_ts, uid, mp, overall)
         })
         .buffer_unordered(MAX_CONCURRENCY);
 
@@ -729,18 +668,164 @@ async fn crawl_rooms_parallel(
             }
         }
 
-        // Increment overall progress
         if let Some(ref pb) = overall_pb {
             pb.inc(1);
         }
     }
 
-    // Finish overall progress bar
     if let Some(pb) = overall_pb {
         pb.finish_and_clear();
     }
 
     (success_count, error_count, skipped_count)
+}
+
+fn create_progress_bars(
+    total_rooms: usize,
+) -> (
+    Option<indicatif::MultiProgress>,
+    Option<indicatif::ProgressBar>,
+) {
+    use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+
+    let is_tty = std::io::stderr().is_terminal();
+
+    if is_tty {
+        let mp = MultiProgress::new();
+        let overall_style = ProgressStyle::default_bar()
+            .template("[{bar:40.cyan/blue}] {pos}/{len} rooms ({percent}%)")
+            .unwrap()
+            .progress_chars("█▓░");
+        let overall = mp.add(ProgressBar::new(total_rooms as u64));
+        overall.set_style(overall_style);
+        (Some(mp), Some(overall))
+    } else {
+        (None, None)
+    }
+}
+
+async fn crawl_single_room(
+    room: matrix_sdk::Room,
+    window_start_ts: Option<i64>,
+    user_id: String,
+    multi_progress: Option<indicatif::MultiProgress>,
+    overall_pb: Option<indicatif::ProgressBar>,
+) -> (
+    matrix_sdk::Room,
+    anyhow::Result<RoomCrawlStats>,
+    Option<indicatif::ProgressBar>,
+) {
+    let room_name = room
+        .display_name()
+        .await
+        .ok()
+        .map(|n| n.to_string())
+        .unwrap_or_else(|| room.room_id().to_string());
+
+    let pb = create_room_progress_bar(&multi_progress, &overall_pb, &room_name);
+
+    let progress_callback = {
+        let pb = pb.clone();
+        let room_name_for_progress = room_name.clone();
+        move |_name: &str, oldest: Option<i64>, _newest: Option<i64>, events: usize| {
+            if let Some(ref pb) = pb {
+                let msg = if let Some(ts) = oldest {
+                    let timestamp = format_timestamp_opt(Some(ts));
+                    format!(
+                        "{}: {} events from {}",
+                        room_name_for_progress, events, timestamp
+                    )
+                } else {
+                    format!("{}: {} events", room_name_for_progress, events)
+                };
+                pb.set_message(msg);
+            }
+        }
+    };
+
+    let stats_res = paginate_room_until(&room, window_start_ts, &user_id, progress_callback).await;
+
+    print_room_result(&pb, &stats_res, &room_name);
+
+    (room, stats_res, pb)
+}
+
+fn create_room_progress_bar(
+    multi_progress: &Option<indicatif::MultiProgress>,
+    overall_pb: &Option<indicatif::ProgressBar>,
+    room_name: &str,
+) -> Option<indicatif::ProgressBar> {
+    use indicatif::{ProgressBar, ProgressStyle};
+
+    if let Some(ref mp) = multi_progress {
+        let style = ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap()
+            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏");
+        let pb = if let Some(ref overall_bar) = overall_pb {
+            mp.insert_before(overall_bar, ProgressBar::new_spinner())
+        } else {
+            mp.add(ProgressBar::new_spinner())
+        };
+        pb.set_style(style);
+        pb.set_message(format!("{}: 0 events", room_name));
+        pb.enable_steady_tick(std::time::Duration::from_millis(100));
+        Some(pb)
+    } else {
+        None
+    }
+}
+
+fn print_room_result(
+    pb: &Option<indicatif::ProgressBar>,
+    stats_res: &anyhow::Result<RoomCrawlStats>,
+    room_name: &str,
+) {
+    if let Some(ref pb) = pb {
+        if let Ok(stats) = stats_res {
+            let creation_indicator = if stats.fully_crawled { "🌱" } else { " " };
+            let time_range = match (stats.oldest_ts, stats.newest_ts) {
+                (Some(oldest), Some(newest)) => {
+                    format!(
+                        "{} {} → {}",
+                        format_timestamp_opt(Some(oldest)),
+                        creation_indicator,
+                        format_timestamp_opt(Some(newest))
+                    )
+                }
+                _ => "unknown".to_string(),
+            };
+            pb.println(format!("  ✓ {}", stats.room_name));
+            pb.println(format!("\t📅 {}", time_range));
+            pb.println(format!(
+                "\t📊 {} events ({} from you)",
+                stats.total_events, stats.user_events
+            ));
+            pb.finish_and_clear();
+        } else {
+            pb.println(format!("  ✗ {} | ❌ failed", room_name));
+            pb.finish_and_clear();
+        }
+    } else if let Ok(stats) = stats_res {
+        eprintln!("  ✓ {}", stats.room_name);
+        let creation_indicator = if stats.fully_crawled { "🌱" } else { " " };
+        let time_range = match (stats.oldest_ts, stats.newest_ts) {
+            (Some(oldest), Some(newest)) => {
+                format!(
+                    "{} {} →  {}",
+                    format_timestamp_opt(Some(oldest)),
+                    creation_indicator,
+                    format_timestamp_opt(Some(newest))
+                )
+            }
+            _ => "unknown".to_string(),
+        };
+        eprintln!("\t📅 {}", time_range);
+        eprintln!(
+            "\t📊 {} events ({} from you)",
+            stats.total_events, stats.user_events
+        );
+    }
 }
 
 // Removed old paginate_room; replaced by paginate_room_until + DB update in crawl_rooms_parallel.
