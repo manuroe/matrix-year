@@ -66,7 +66,7 @@ pub async fn run(window: String, user_id_flag: Option<String>) -> Result<()> {
     let mut selector = AccountSelector::new()?;
     let accounts = selector.select_accounts(user_id_flag, true)?;
 
-    eprintln!("� Crawling {} account(s)", accounts.len());
+    eprintln!("🔍 Crawling {} account(s)", accounts.len());
 
     // Crawl each account
     for (account_id, account_dir) in &accounts {
