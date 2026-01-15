@@ -96,24 +96,6 @@ impl CrawlDb {
         )
         .context("Failed to create room_crawl_metadata table")?;
 
-        // Add new columns to existing databases (SQLite ignores if they already exist)
-        let _ = conn.execute(
-            "ALTER TABLE room_crawl_metadata ADD COLUMN total_events_fetched INTEGER NOT NULL DEFAULT 0",
-            [],
-        );
-        let _ = conn.execute(
-            "ALTER TABLE room_crawl_metadata ADD COLUMN user_events_fetched INTEGER NOT NULL DEFAULT 0",
-            [],
-        );
-        let _ = conn.execute(
-            "ALTER TABLE room_crawl_metadata ADD COLUMN last_crawl_status TEXT",
-            [],
-        );
-        let _ = conn.execute(
-            "ALTER TABLE room_crawl_metadata ADD COLUMN last_crawl_error TEXT",
-            [],
-        );
-
         Ok(Self { conn })
     }
 

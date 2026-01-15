@@ -318,7 +318,12 @@ async fn crawl_single_room(
 
     // Mark room as in-progress
     let room_id = room.room_id().to_string();
-    let _ = db.set_crawl_status(&room_id, crawl_db::CrawlStatus::InProgress);
+    if let Err(e) = db.set_crawl_status(&room_id, crawl_db::CrawlStatus::InProgress) {
+        eprintln!(
+            "Warning: Failed to mark room {} as InProgress: {}",
+            room_id, e
+        );
+    }
 
     let stats_res = crawl_room_events(&room, window_start_ts, &user_id, &*progress_callback).await;
 
