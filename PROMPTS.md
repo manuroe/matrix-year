@@ -186,3 +186,6 @@ Context lost again. Let's use the first commit generated message:
 6. **Add dependency hygiene guidance** → Updated AGENTS.md to recommend maintained crates
 
 All 36 tests passing. Ready for review.
+
+## PR: refactor: split monolithic crawl.rs into focused modules
+- Not that many but it lost the context
