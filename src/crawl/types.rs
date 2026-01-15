@@ -1,4 +1,5 @@
-/// Data structures for the crawl module.
+//! Data structures for the crawl module.
+
 /// Represents the join state of a room.
 #[derive(Clone, Debug)]
 pub enum RoomJoinState {

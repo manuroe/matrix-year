@@ -12,8 +12,8 @@ const PAGINATION_BATCH_SIZE: usize = 100;
 
 /// Sets up the event cache for a room without fetching events.
 ///
-/// Prepares the event cache and returns it along with the latest event
-/// currently in memory.
+/// Prepares the event cache and returns it so callers can query in-memory
+/// events (e.g., via `get_latest_event`) without performing pagination.
 pub async fn setup_event_cache(
     room: &matrix_sdk::Room,
 ) -> Result<matrix_sdk::event_cache::RoomEventCache> {

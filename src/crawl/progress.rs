@@ -7,9 +7,6 @@ use std::io::IsTerminal;
 
 use crate::timefmt::format_timestamp_opt;
 
-/// Maximum concurrent rooms in TTY mode (not used currently, kept for future).
-const _MAX_ROOM_BARS: usize = 10;
-
 /// Maximum width for room names in progress display.
 const ROOM_NAME_WIDTH: usize = 38;
 
@@ -100,7 +97,6 @@ pub fn format_completed_room(
 pub struct CrawlProgress {
     multi: Option<MultiProgress>,
     overall: Option<ProgressBar>,
-    #[allow(dead_code)]
     is_tty: bool,
 }
 
@@ -231,5 +227,37 @@ mod tests {
         let progress = CrawlProgress::new(5);
         let _callback = progress.make_callback("Test Room".to_string());
         // Callback should be callable without panicking
+    }
+
+    #[test]
+    fn test_truncate_middle_short() {
+        let s = "Short name";
+        let out = super::truncate_middle(s, 38);
+        assert!(out.starts_with("Short name"));
+        assert_eq!(out.len(), 38);
+    }
+
+    #[test]
+    fn test_truncate_middle_long_unicode() {
+        let s = "Very long room name 🚀 that exceeds limit";
+        let out = super::truncate_middle(s, 20);
+        assert!(out.contains('…'));
+        assert_eq!(out.chars().count(), 20);
+    }
+
+    #[test]
+    fn test_format_completed_room_basic() {
+        let out =
+            super::format_completed_room("Room", 123, 0, Some(1_735_689_600_000), None, false);
+        assert!(out.starts_with("Room"));
+        assert!(out.contains("123 events"));
+        assert!(!out.contains("from you"));
+    }
+
+    #[test]
+    fn test_format_completed_room_with_user_events_and_creation() {
+        let out = super::format_completed_room("Room", 5, 2, Some(1_735_689_600_000), None, true);
+        assert!(out.contains("(2 from you)"));
+        assert!(out.contains("💯"));
     }
 }
