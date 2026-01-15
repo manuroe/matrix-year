@@ -139,7 +139,14 @@ impl CrawlProgress {
         let multi = self.multi.clone();
         let overall = self.overall.clone();
 
-        if let Some(ref mp) = multi {
+        if self.is_tty {
+            let Some(ref mp) = multi else {
+                // Unexpected: TTY mode but no MultiProgress. Fallback to non-TTY behavior.
+                let callback = Box::new(
+                    |_name: &str, _oldest: Option<i64>, _newest: Option<i64>, _events: usize| {},
+                );
+                return (callback, None);
+            };
             let style = ProgressStyle::default_spinner()
                 .template("  {spinner:.green} {msg}")
                 .unwrap()
@@ -201,11 +208,15 @@ impl CrawlProgress {
     /// Print a line without breaking/redrawing the progress bars.
     /// Uses `MultiProgress::println` when available, otherwise falls back to `eprintln!`.
     pub fn println(&self, msg: &str) {
-        if let Some(ref mp) = self.multi {
-            // MultiProgress::println is safe to call from any thread and will
-            // render the message above the progress bars without causing
-            // duplicate lines.
-            let _ = mp.println(msg);
+        if self.is_tty {
+            if let Some(ref mp) = self.multi {
+                // MultiProgress::println is safe to call from any thread and will
+                // render the message above the progress bars without causing
+                // duplicate lines.
+                let _ = mp.println(msg);
+            } else {
+                eprintln!("{}", msg);
+            }
         } else {
             eprintln!("{}", msg);
         }

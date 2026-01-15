@@ -3,6 +3,7 @@
 /// Determines which rooms need pagination based on window bounds, prior crawl state,
 /// and freshness information from the room list sync.
 use anyhow::Result;
+use std::collections::{HashMap, HashSet};
 
 use crate::crawl_db;
 
@@ -92,32 +93,21 @@ pub fn select_rooms_to_crawl(
     db: &crawl_db::CrawlDb,
     window_start_ts: Option<i64>,
     window_end_ts: Option<i64>,
-    latest_events: &std::collections::HashMap<String, (String, i64)>,
+    latest_events: &HashMap<String, (String, i64)>,
 ) -> Vec<matrix_sdk::Room> {
-    let mut rooms = Vec::new();
-    for room in joined_rooms.iter() {
-        let room_id_str = room.room_id().to_string();
-        let needs_crawl = match should_crawl_room(
-            db,
-            &room_id_str,
-            window_start_ts,
-            window_end_ts.expect("window_end_ts required"),
-            latest_events.get(&room_id_str),
-        ) {
-            Ok(value) => value,
-            Err(err) => {
-                eprintln!(
-                    "Error determining whether to crawl room {}: {}",
-                    room_id_str, err
-                );
-                false
-            }
-        };
-        if needs_crawl {
-            rooms.push(room.clone());
-        }
-    }
-    rooms
+    let ids: Vec<String> = joined_rooms
+        .iter()
+        .map(|r| r.room_id().to_string())
+        .collect();
+    let selected_ids =
+        select_room_ids_to_crawl(&ids, db, window_start_ts, window_end_ts, latest_events);
+    let selected_set: HashSet<String> = selected_ids.into_iter().collect();
+
+    joined_rooms
+        .iter()
+        .filter(|r| selected_set.contains(&r.room_id().to_string()))
+        .cloned()
+        .collect()
 }
 
 /// Records virgin rooms that were skipped as having no events in the target window.
@@ -140,17 +130,65 @@ pub fn record_skipped_virgin_rooms(
     db: &crawl_db::CrawlDb,
     joined_rooms: &[matrix_sdk::Room],
     rooms_to_crawl: &[matrix_sdk::Room],
-    latest_events: &std::collections::HashMap<String, (String, i64)>,
+    latest_events: &HashMap<String, (String, i64)>,
 ) -> Result<()> {
-    for room in joined_rooms {
-        let room_id_str = room.room_id().to_string();
-        if let Ok(None) = db.get_room_metadata(&room_id_str) {
-            // Virgin room not selected for crawl
-            if !rooms_to_crawl.iter().any(|r| r.room_id() == room.room_id()) {
-                // This room was skipped, record that we've seen it
-                if let Some((event_id, event_ts)) = latest_events.get(&room_id_str) {
+    let joined_ids: Vec<String> = joined_rooms
+        .iter()
+        .map(|r| r.room_id().to_string())
+        .collect();
+    let crawl_ids: HashSet<String> = rooms_to_crawl
+        .iter()
+        .map(|r| r.room_id().to_string())
+        .collect();
+    record_skipped_virgin_rooms_ids(db, &joined_ids, &crawl_ids, latest_events)
+}
+
+/// Helper: selects room IDs to crawl. Testable without Matrix SDK types.
+fn select_room_ids_to_crawl(
+    joined_room_ids: &[String],
+    db: &crawl_db::CrawlDb,
+    window_start_ts: Option<i64>,
+    window_end_ts: Option<i64>,
+    latest_events: &HashMap<String, (String, i64)>,
+) -> Vec<String> {
+    let mut selected = Vec::new();
+    for room_id_str in joined_room_ids.iter() {
+        let needs_crawl = match should_crawl_room(
+            db,
+            room_id_str,
+            window_start_ts,
+            window_end_ts.expect("window_end_ts required"),
+            latest_events.get(room_id_str),
+        ) {
+            Ok(value) => value,
+            Err(err) => {
+                eprintln!(
+                    "Error determining whether to crawl room {}: {}",
+                    room_id_str, err
+                );
+                false
+            }
+        };
+        if needs_crawl {
+            selected.push(room_id_str.clone());
+        }
+    }
+    selected
+}
+
+/// Helper: records skipped virgin room IDs. Testable without Matrix SDK types.
+fn record_skipped_virgin_rooms_ids(
+    db: &crawl_db::CrawlDb,
+    joined_room_ids: &[String],
+    rooms_to_crawl_ids: &HashSet<String>,
+    latest_events: &HashMap<String, (String, i64)>,
+) -> Result<()> {
+    for room_id_str in joined_room_ids.iter() {
+        if let Ok(None) = db.get_room_metadata(room_id_str) {
+            if !rooms_to_crawl_ids.contains(room_id_str) {
+                if let Some((event_id, event_ts)) = latest_events.get(room_id_str) {
                     db.update_room_metadata(
-                        &room_id_str,
+                        room_id_str,
                         Some(event_id.clone()),
                         Some(*event_ts),
                         Some(event_id.clone()),
@@ -388,6 +426,82 @@ mod tests {
             Some(&latest_2025),
         )?;
         assert!(needs, "should crawl 2025 window even after crawling 2024");
+        Ok(())
+    }
+
+    #[test]
+    fn select_room_ids_filters_correctly() -> anyhow::Result<()> {
+        let (db, _dir) = setup_db()?;
+        // Room A: fully crawled and window end covered -> skip
+        db.update_room_metadata(
+            "!A",
+            Some("oldest".to_owned()),
+            Some(1_000),
+            Some("newest".to_owned()),
+            Some(3_000),
+            true,
+        )?;
+        // Room B: not fully crawled, newest before window end -> crawl
+        db.update_room_metadata(
+            "!B",
+            Some("oldest".to_owned()),
+            Some(500),
+            Some("newest".to_owned()),
+            Some(1_500),
+            false,
+        )?;
+
+        let ids = vec!["!A".to_string(), "!B".to_string()];
+        let window_start = Some(1_000);
+        let window_end = Some(2_000);
+        let latest: HashMap<String, (String, i64)> = HashMap::from([
+            ("!A".to_string(), ("newest".to_string(), 3_000)),
+            ("!B".to_string(), ("something".to_string(), 1_750)),
+        ]);
+
+        let selected = select_room_ids_to_crawl(&ids, &db, window_start, window_end, &latest);
+        assert_eq!(selected, vec!["!B".to_string()]);
+        Ok(())
+    }
+
+    #[test]
+    fn record_skipped_virgin_rooms_ids_updates_db() -> anyhow::Result<()> {
+        let (db, _dir) = setup_db()?;
+        // Joined rooms: A and B; we will crawl A, skip B
+        let joined = vec!["!A".to_string(), "!B".to_string()];
+        let crawl_ids: HashSet<String> = HashSet::from(["!A".to_string()]);
+        let latest: HashMap<String, (String, i64)> = HashMap::from([
+            ("!A".to_string(), ("evtA".to_string(), 1_000)),
+            ("!B".to_string(), ("evtB".to_string(), 2_000)),
+        ]);
+
+        // Precondition: no metadata for B
+        assert!(db.get_room_metadata("!B")?.is_none());
+
+        record_skipped_virgin_rooms_ids(&db, &joined, &crawl_ids, &latest)?;
+
+        // Postcondition: metadata recorded for B
+        let meta_b = db.get_room_metadata("!B")?.expect("metadata for B");
+        assert_eq!(meta_b.newest_event_id.as_deref(), Some("evtB"));
+        assert_eq!(meta_b.newest_event_ts, Some(2_000));
+        assert_eq!(meta_b.oldest_event_id.as_deref(), Some("evtB"));
+        assert_eq!(meta_b.oldest_event_ts, Some(2_000));
+        assert!(!meta_b.fully_crawled);
+        Ok(())
+    }
+
+    #[test]
+    fn record_skipped_virgin_rooms_ids_missing_latest_is_noop() -> anyhow::Result<()> {
+        let (db, _dir) = setup_db()?;
+        let joined = vec!["!C".to_string()];
+        let crawl_ids: HashSet<String> = HashSet::new();
+        let latest: HashMap<String, (String, i64)> = HashMap::new();
+
+        // Precondition: no metadata
+        assert!(db.get_room_metadata("!C")?.is_none());
+        record_skipped_virgin_rooms_ids(&db, &joined, &crawl_ids, &latest)?;
+        // Still none since we had no latest
+        assert!(db.get_room_metadata("!C")?.is_none());
         Ok(())
     }
 }
