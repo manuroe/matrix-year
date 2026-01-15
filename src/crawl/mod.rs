@@ -222,7 +222,12 @@ async fn crawl_rooms_parallel(
         })
         .buffer_unordered(MAX_CONCURRENCY);
 
-    while let Some((room, stats_res, _spinner)) = stream.next().await {
+    while let Some((room, stats_res, spinner)) = stream.next().await {
+        // Finish spinner before printing results
+        if let Some(ref sp) = spinner {
+            sp.finish_and_clear();
+        }
+
         match stats_res {
             Ok(stats) => {
                 let room_name = stats.room_name.clone();

@@ -245,7 +245,7 @@ mod tests {
         let s = "Short name";
         let out = super::truncate_middle(s, 38);
         assert!(out.starts_with("Short name"));
-        assert_eq!(out.len(), 38);
+        assert_eq!(out.chars().count(), 38);
     }
 
     #[test]
