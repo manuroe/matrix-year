@@ -16,6 +16,39 @@ pub struct TimeWindow {
     pub account_creation_ts: Option<i64>,
 }
 
+/// Crawl status for a room
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CrawlStatus {
+    /// Room has never been crawled (skipped, outside window)
+    Virgin,
+    /// Last crawl completed successfully
+    Success,
+    /// Crawl is currently in progress (or was interrupted)
+    InProgress,
+    /// Last crawl failed with an error
+    Error(String),
+}
+
+impl CrawlStatus {
+    /// Convert to database string representation
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Virgin => "virgin",
+            Self::Success => "success",
+            Self::InProgress => "in_progress",
+            Self::Error(_) => "error",
+        }
+    }
+
+    /// Get the error message if this is an Error status
+    pub fn error_message(&self) -> Option<&str> {
+        match self {
+            Self::Error(msg) => Some(msg),
+            _ => None,
+        }
+    }
+}
+
 /// Represents crawl metadata for a single room
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -26,6 +59,9 @@ pub struct RoomCrawlMetadata {
     pub newest_event_id: Option<String>, // Event ID of the newest message crawled
     pub newest_event_ts: Option<i64>,    // Unix timestamp in milliseconds
     pub fully_crawled: bool,             // True if back-paginated to room creation
+    pub total_events_fetched: usize,     // Cumulative count of events fetched across all crawls
+    pub user_events_fetched: usize,      // Cumulative count of user's messages fetched
+    pub last_crawl_status: Option<CrawlStatus>, // Status of last crawl operation
 }
 
 /// Database handle for crawl metadata operations
@@ -50,11 +86,33 @@ impl CrawlDb {
                 oldest_event_ts INTEGER,
                 newest_event_id TEXT,
                 newest_event_ts INTEGER,
-                fully_crawled INTEGER NOT NULL DEFAULT 0
+                fully_crawled INTEGER NOT NULL DEFAULT 0,
+                total_events_fetched INTEGER NOT NULL DEFAULT 0,
+                user_events_fetched INTEGER NOT NULL DEFAULT 0,
+                last_crawl_status TEXT,
+                last_crawl_error TEXT
             )",
             [],
         )
         .context("Failed to create room_crawl_metadata table")?;
+
+        // Add new columns to existing databases (SQLite ignores if they already exist)
+        let _ = conn.execute(
+            "ALTER TABLE room_crawl_metadata ADD COLUMN total_events_fetched INTEGER NOT NULL DEFAULT 0",
+            [],
+        );
+        let _ = conn.execute(
+            "ALTER TABLE room_crawl_metadata ADD COLUMN user_events_fetched INTEGER NOT NULL DEFAULT 0",
+            [],
+        );
+        let _ = conn.execute(
+            "ALTER TABLE room_crawl_metadata ADD COLUMN last_crawl_status TEXT",
+            [],
+        );
+        let _ = conn.execute(
+            "ALTER TABLE room_crawl_metadata ADD COLUMN last_crawl_error TEXT",
+            [],
+        );
 
         Ok(Self { conn })
     }
@@ -102,13 +160,24 @@ impl CrawlDb {
     #[allow(dead_code)]
     pub fn get_room_metadata(&self, room_id: &str) -> Result<Option<RoomCrawlMetadata>> {
         let mut stmt = self.conn.prepare(
-            "SELECT room_id, oldest_event_id, oldest_event_ts, newest_event_id, newest_event_ts, fully_crawled
+            "SELECT room_id, oldest_event_id, oldest_event_ts, newest_event_id, newest_event_ts, fully_crawled,
+                    total_events_fetched, user_events_fetched, last_crawl_status, last_crawl_error
              FROM room_crawl_metadata
              WHERE room_id = ?1",
         )?;
 
         let result = stmt
             .query_row(params![room_id], |row| {
+                let status_str: Option<String> = row.get(8)?;
+                let error_str: Option<String> = row.get(9)?;
+                let status = match status_str.as_deref() {
+                    Some("virgin") => Some(CrawlStatus::Virgin),
+                    Some("success") => Some(CrawlStatus::Success),
+                    Some("in_progress") => Some(CrawlStatus::InProgress),
+                    Some("error") => error_str.map(CrawlStatus::Error),
+                    _ => None,
+                };
+
                 Ok(RoomCrawlMetadata {
                     room_id: row.get(0)?,
                     oldest_event_id: row.get(1)?,
@@ -116,6 +185,9 @@ impl CrawlDb {
                     newest_event_id: row.get(3)?,
                     newest_event_ts: row.get(4)?,
                     fully_crawled: row.get(5)?,
+                    total_events_fetched: row.get(6)?,
+                    user_events_fetched: row.get(7)?,
+                    last_crawl_status: status,
                 })
             })
             .optional()?;
@@ -196,5 +268,83 @@ impl CrawlDb {
             window_end,
             account_creation_ts,
         }))
+    }
+
+    /// Set the crawl status for a room
+    pub fn set_crawl_status(&self, room_id: &str, status: CrawlStatus) -> Result<()> {
+        let error = status.error_message();
+        self.conn.execute(
+            "INSERT INTO room_crawl_metadata (room_id, last_crawl_status, last_crawl_error)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(room_id) DO UPDATE SET
+                last_crawl_status = excluded.last_crawl_status,
+                last_crawl_error = excluded.last_crawl_error",
+            params![room_id, status.as_str(), error],
+        )?;
+        Ok(())
+    }
+
+    /// Increment event counts for a room (cumulative)
+    pub fn increment_event_counts(
+        &self,
+        room_id: &str,
+        total_events: usize,
+        user_events: usize,
+    ) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO room_crawl_metadata (room_id, total_events_fetched, user_events_fetched)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(room_id) DO UPDATE SET
+                total_events_fetched = MAX(total_events_fetched, excluded.total_events_fetched),
+                user_events_fetched = MAX(user_events_fetched, excluded.user_events_fetched)",
+            params![room_id, total_events, user_events],
+        )?;
+        Ok(())
+    }
+
+    /// Get all rooms sorted by status priority (virgin → 💯 → ✓ → ⠧ → error)
+    pub fn get_all_rooms_sorted(&self) -> Result<Vec<RoomCrawlMetadata>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT room_id, oldest_event_id, oldest_event_ts, newest_event_id, newest_event_ts, 
+                    fully_crawled, total_events_fetched, user_events_fetched, last_crawl_status, last_crawl_error
+             FROM room_crawl_metadata
+             ORDER BY 
+                CASE last_crawl_status
+                    WHEN 'virgin' THEN 1
+                    WHEN 'success' THEN CASE WHEN fully_crawled = 1 THEN 2 ELSE 3 END
+                    WHEN 'in_progress' THEN 4
+                    WHEN 'error' THEN 5
+                    ELSE 0
+                END,
+                room_id",
+        )?;
+
+        let rooms = stmt
+            .query_map([], |row| {
+                let status_str: Option<String> = row.get(8)?;
+                let error_str: Option<String> = row.get(9)?;
+                let status = match status_str.as_deref() {
+                    Some("virgin") => Some(CrawlStatus::Virgin),
+                    Some("success") => Some(CrawlStatus::Success),
+                    Some("in_progress") => Some(CrawlStatus::InProgress),
+                    Some("error") => error_str.map(CrawlStatus::Error),
+                    _ => None,
+                };
+
+                Ok(RoomCrawlMetadata {
+                    room_id: row.get(0)?,
+                    oldest_event_id: row.get(1)?,
+                    oldest_event_ts: row.get(2)?,
+                    newest_event_id: row.get(3)?,
+                    newest_event_ts: row.get(4)?,
+                    fully_crawled: row.get(5)?,
+                    total_events_fetched: row.get(6)?,
+                    user_events_fetched: row.get(7)?,
+                    last_crawl_status: status,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(rooms)
     }
 }

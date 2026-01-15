@@ -202,6 +202,8 @@ fn record_skipped_virgin_rooms_ids(
                             e
                         )
                     })?;
+                    // Mark as virgin (skipped, never crawled)
+                    let _ = db.set_crawl_status(room_id_str, crate::crawl_db::CrawlStatus::Virgin);
                 }
             }
         }

@@ -41,10 +41,16 @@ Show the status of all logged-in Matrix accounts, including account IDs, homeser
 
 **Usage:**
 ```bash
-my status
+my status [--list] [--user-id <@alice:example.org>]
 ```
 
+**Options:**
+- `--list` — Show detailed room listing with crawl status for each room.
+- `--user-id <@alice:example.org>` — (Optional) Target a specific account. If omitted with `--list`, lists rooms for all accounts.
+
 **Behavior:**
+
+Without `--list`:
 - Lists all accounts found in the data directory.
 - For each account, displays:
   - Matrix user ID
@@ -53,9 +59,22 @@ my status
   - Session health (restorable, needs login, etc.)
 - Exits with nonzero status if no accounts are found or if any account is in an error state.
 
-**Example:**
+With `--list`:
+- Shows all rooms with their crawl metadata.
+- Each room displays:
+  - Status symbol (`○` virgin, `✓` success, `⠧` in progress, `✗` error)
+  - Room name (truncated to 40 display columns)
+  - Event counts (total and user-sent)
+  - Oldest event timestamp
+  - `💯` indicator for fully crawled rooms (reached room creation)
+- Rooms are sorted by status priority: virgin → success (fully crawled first) → in-progress → error
+- Proper Unicode-aware alignment for room names with emoji or multi-byte characters
+
+**Examples:**
 ```bash
 my status
+my status --list
+my status --list --user-id @alice:example.org
 ```
 
 ### `crawl`
