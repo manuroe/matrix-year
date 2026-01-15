@@ -189,3 +189,36 @@ All 36 tests passing. Ready for review.
 
 ## PR: refactor: split monolithic crawl.rs into focused modules
 - Not that many but it lost the context
+
+## PR: Add status --list command to display rooms with crawl metadata
+
+> Add `--list` params to `my status` that will list all the rooms data from crawl_db
+> Update the crawl_db so that it tracks:
+> - the number of fetched events
+> - the status of the last crawl operation (virgin, 💯, ✓, ⠧, error)
+> - if any, the crawl error as a string
+
+> use an enum for the crawl status
+
+> can error have the error string as an associated data like in a Swift enums?
+> do it
+
+> [Terminal shows error: --user-id is required for status --list]
+> no it should not
+
+> [Terminal shows deadpool panic with task cancellation]
+> not great
+
+> [Terminal shows same deadpool panic]
+> no better
+
+> there is misalignment
+> [Shows example with misaligned output due to emoji width]
+> I am tempted to use ✓ for fully crawled rooms
+
+> [Shows output with ✓ but no 💯]
+> hey still keep the 💯 indicator at the end of the line
+
+> update CLI.md with the new option
+
+> PR it following agents.md

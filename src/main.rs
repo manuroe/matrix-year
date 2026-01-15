@@ -87,6 +87,9 @@ enum Commands {
         /// Matrix user id (e.g. @alice:example.org). If omitted, show all.
         #[arg(long)]
         user_id: Option<String>,
+        /// List all rooms with their crawl metadata
+        #[arg(long)]
+        list: bool,
     },
     /// Crawl Matrix messages into the SDK database for a time window
     Crawl {
@@ -136,11 +139,11 @@ fn main() -> Result<()> {
                     .block_on(logout::run(user_id))?;
                 return Ok(());
             }
-            Commands::Status { user_id } => {
+            Commands::Status { user_id, list } => {
                 // Run status (needs async for cross-signing check)
                 tokio::runtime::Runtime::new()
                     .context("Failed to create Tokio runtime")?
-                    .block_on(status::run(user_id))?;
+                    .block_on(status::run(user_id, list))?;
                 return Ok(());
             }
             Commands::Crawl { window, user_id } => {

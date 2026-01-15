@@ -505,6 +505,7 @@ The project includes integration tests that require live Matrix account credenti
 
 - Prefer maintained crates; avoid deprecated ones (e.g., use `is-terminal` over `atty`).
 - Keep shared utilities (timestamp formatting, etc.) de-duplicated to avoid drift across modules.
+- Use `unicode-width` crate for proper display width calculations when aligning text with Unicode content (emoji, CJK characters, zero-width joiners). Character count (`.chars().count()`) differs from display width (columns) for many Unicode strings.
 
 ## 11. Git & GitHub Workflow
 

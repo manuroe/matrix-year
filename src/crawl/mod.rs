@@ -33,7 +33,7 @@ use discovery::{fetch_room_list_via_sliding_sync, setup_account};
 mod pagination;
 use pagination::crawl_room_events;
 
-mod progress;
+pub mod progress;
 use progress::CrawlProgress;
 
 /// Maximum number of rooms to crawl concurrently.
@@ -218,7 +218,7 @@ async fn crawl_rooms_parallel(
         .map(move |room| {
             let uid = user_id.clone();
             let progress_for_room = progress_for_stream.clone();
-            crawl_single_room(room, window_start_ts, uid, progress_for_room)
+            crawl_single_room(room, window_start_ts, uid, progress_for_room, db)
         })
         .buffer_unordered(MAX_CONCURRENCY);
 
@@ -227,6 +227,8 @@ async fn crawl_rooms_parallel(
         if let Some(ref sp) = spinner {
             sp.finish_and_clear();
         }
+
+        let room_id = room.room_id().to_string();
 
         match stats_res {
             Ok(stats) => {
@@ -241,9 +243,17 @@ async fn crawl_rooms_parallel(
                     stats.fully_crawled,
                 ) {
                     error_count += 1;
+                    // Mark as error
+                    let _ =
+                        db.set_crawl_status(&room_id, crawl_db::CrawlStatus::Error(e.to_string()));
                     progress.println(&format!("  ✗ {} ({})", room_name, e));
                 } else {
                     success_count += 1;
+                    // Mark as success and update event counts
+                    let _ = db.set_crawl_status(&room_id, crawl_db::CrawlStatus::Success);
+                    let _ =
+                        db.update_max_event_counts(&room_id, stats.total_events, stats.user_events);
+
                     use crate::crawl::progress::format_completed_room;
                     let formatted = format_completed_room(
                         &room_name,
@@ -258,6 +268,9 @@ async fn crawl_rooms_parallel(
             }
             Err(e) => {
                 error_count += 1;
+
+                // Mark as error
+                let _ = db.set_crawl_status(&room_id, crawl_db::CrawlStatus::Error(e.to_string()));
 
                 // Fetch room name for error reporting
                 let room_name = room
@@ -287,6 +300,7 @@ async fn crawl_single_room(
     window_start_ts: Option<i64>,
     user_id: String,
     progress: CrawlProgress,
+    db: &crawl_db::CrawlDb,
 ) -> (
     matrix_sdk::Room,
     Result<RoomCrawlStats>,
@@ -301,6 +315,16 @@ async fn crawl_single_room(
         .unwrap_or_else(|| room.room_id().to_string());
 
     let (progress_callback, spinner) = progress.make_callback(room_name);
+
+    // Mark room as in-progress
+    let room_id = room.room_id().to_string();
+    if let Err(e) = db.set_crawl_status(&room_id, crawl_db::CrawlStatus::InProgress) {
+        eprintln!(
+            "Warning: Failed to mark room {} as InProgress: {}",
+            room_id, e
+        );
+    }
+
     let stats_res = crawl_room_events(&room, window_start_ts, &user_id, &*progress_callback).await;
 
     (room, stats_res, spinner)
