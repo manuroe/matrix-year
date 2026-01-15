@@ -284,8 +284,9 @@ impl CrawlDb {
         Ok(())
     }
 
-    /// Increment event counts for a room (cumulative)
-    pub fn increment_event_counts(
+    /// Track maximum event counts for a room (keeps highest count seen)
+    /// Uses MAX to store the largest count observed across multiple crawl attempts.
+    pub fn update_max_event_counts(
         &self,
         room_id: &str,
         total_events: usize,
@@ -314,7 +315,7 @@ impl CrawlDb {
                     WHEN 'success' THEN CASE WHEN fully_crawled = 1 THEN 2 ELSE 3 END
                     WHEN 'in_progress' THEN 4
                     WHEN 'error' THEN 5
-                    ELSE 0
+                    ELSE 6
                 END,
                 room_id",
         )?;

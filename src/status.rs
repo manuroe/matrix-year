@@ -8,7 +8,14 @@ use std::fs;
 use std::path::Path;
 use unicode_width::UnicodeWidthStr;
 
-/// Gets the status symbol for a room based on its crawl metadata
+/// Gets the status symbol for a room based on its crawl metadata.
+///
+/// Returns a single Unicode character representing the crawl status:
+/// - `○` for virgin (never crawled)
+/// - `✓` for success
+/// - `⠧` for in-progress
+/// - `✗` for error
+/// - `?` for unknown/null status (should not occur in normal usage)
 fn get_status_symbol(metadata: &crate::crawl_db::RoomCrawlMetadata) -> &'static str {
     use crate::crawl_db::CrawlStatus;
 
@@ -21,7 +28,18 @@ fn get_status_symbol(metadata: &crate::crawl_db::RoomCrawlMetadata) -> &'static 
     }
 }
 
-/// Gets display names for all rooms
+/// Gets display names for all rooms from the Matrix client.
+///
+/// Returns a HashMap mapping room IDs to their display names. Falls back to
+/// the room ID itself if the display name is unavailable or the room is not
+/// found in the client's room list.
+///
+/// # Arguments
+/// * `client` - Matrix client instance with loaded room cache
+/// * `rooms_metadata` - Slice of room metadata containing room IDs to look up
+///
+/// # Returns
+/// HashMap mapping room_id strings to display names (defaults to room_id if unavailable)
 async fn get_room_names(
     client: &Client,
     rooms_metadata: &[crate::crawl_db::RoomCrawlMetadata],
@@ -110,11 +128,8 @@ pub async fn list_rooms(account_id: &str) -> Result<()> {
 
         if let Some(oldest) = metadata.oldest_event_ts {
             let oldest_str = crate::timefmt::format_timestamp_opt(Some(oldest));
-            let oldest_short = if oldest_str.len() >= 16 {
-                &oldest_str[..16]
-            } else {
-                &oldest_str
-            };
+            // Use character-based slicing for UTF-8 safety with Unicode timestamps
+            let oldest_short: String = oldest_str.chars().take(16).collect();
 
             let user_events_str = if metadata.user_events_fetched > 0 {
                 format!(" ({} from you)", metadata.user_events_fetched)
@@ -127,7 +142,7 @@ pub async fn list_rooms(account_id: &str) -> Result<()> {
                 status_symbol,
                 truncated_name,
                 metadata.total_events_fetched,
-                oldest_short,
+                &oldest_short,
                 user_events_str,
                 creation_marker
             );
@@ -140,7 +155,10 @@ pub async fn list_rooms(account_id: &str) -> Result<()> {
 }
 
 /// Truncates a string to a maximum display width with middle ellipsis if needed.
-/// Uses Unicode display width (columns) rather than character count.
+///
+/// Uses Unicode display width (columns) rather than character count, accounting for
+/// emoji (2 columns), CJK characters, and zero-width joiners. Always returns a string
+/// padded to exactly `max_width` display columns for proper text alignment.
 fn truncate_middle(s: &str, max_width: usize) -> String {
     let display_width = UnicodeWidthStr::width(s);
 
@@ -198,7 +216,14 @@ fn truncate_middle(s: &str, max_width: usize) -> String {
             end_chars.reverse();
             let end: String = end_chars.into_iter().collect();
 
-            format!("{}{}{}", start, ellipsis, end)
+            // Build truncated string and pad to exactly max_width display columns
+            let mut result = format!("{}{}{}", start, ellipsis, end);
+            let result_width = UnicodeWidthStr::width(result.as_str());
+            if result_width < max_width {
+                let padding = max_width - result_width;
+                result.push_str(&" ".repeat(padding));
+            }
+            result
         }
     }
 }

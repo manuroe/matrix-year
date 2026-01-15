@@ -252,7 +252,7 @@ async fn crawl_rooms_parallel(
                     // Mark as success and update event counts
                     let _ = db.set_crawl_status(&room_id, crawl_db::CrawlStatus::Success);
                     let _ =
-                        db.increment_event_counts(&room_id, stats.total_events, stats.user_events);
+                        db.update_max_event_counts(&room_id, stats.total_events, stats.user_events);
 
                     use crate::crawl::progress::format_completed_room;
                     let formatted = format_completed_room(
