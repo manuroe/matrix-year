@@ -148,10 +148,13 @@ The data directory is structured to support **multiple Matrix accounts** concurr
 │       └── renders/
 │
 └── global/
-    └── version.json
+    ├── version.json
+    └── preferences.json
 ```
 
 Account identifiers must be filesystem-safe (e.g. `@alice_example.org`).
+
+The `global/preferences.json` file stores user preferences for account selection across commands.
 
 ---
 
@@ -367,7 +370,7 @@ This command:
 **Crawl Matrix data:**
 
 ```bash
-my crawl <window>                           # Crawl all logged-in accounts
+my crawl <window>                           # Interactive selection if multiple accounts
 my crawl <window> --user-id @alice:example.org  # Crawl specific account
 ```
 
@@ -376,11 +379,19 @@ Windows: `2025`, `2025-03`, `2025-W12`, `2025-03-15`, `life`
 **Reset data:**
 
 ```bash
-my reset                                    # Reset all logged-in accounts
+my reset                                    # Interactive selection if multiple accounts
 my reset --user-id @alice:example.org       # Reset specific account
 ```
 
 This clears crawl metadata and SDK data (event cache, crypto store) while preserving credentials.
+
+**Check account status:**
+
+```bash
+my status                                   # Interactive selection if multiple accounts
+my status --list                            # Show room listing with crawl metadata
+my status --user-id @alice:example.org      # Check specific account
+```
 
 **Generate statistics:**
 
@@ -403,7 +414,15 @@ Output filenames are generated automatically (e.g., `my-year-2025.md`). The `--j
 
 Accounts are identified by their Matrix user ID and stored in separate directories.
 
-If no account is specified, commands run for **all logged-in accounts** found in the data directory.
+**Account selection behavior:**
+
+- **With `--user-id` flag**: Uses specified account directly (no prompt).
+- **Single account exists**: Automatically selected (no prompt).
+- **Multiple accounts exist**: Shows interactive multi-select UI (except for `login`).
+- **Preference memory**: Commands remember your last selection in `.my/global/preferences.json`.
+  - Separate tracking for multi-select commands (`crawl`, `reset`, `status --list`) vs. single-select.
+  - Next run pre-selects your previous choices in the UI.
+  - Preferences are filtered to exclude deleted accounts automatically.
 
 ---
 
@@ -440,6 +459,7 @@ Mandatory choices:
 Agents **must respect**:
 
 - Account isolation (no cross-account reads)
+- Account selection via `AccountSelector` module (provides unified account discovery, interactive selection UI, and preference storage)
 - Database abstraction via `CrawlDb` struct (do not access SQLite directly)
 - Incremental crawling via sync tokens
 - Session persistence via SDK sessions (access + refresh tokens)

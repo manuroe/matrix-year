@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+mod account_selector;
 mod crawl;
 mod crawl_db;
 mod login;

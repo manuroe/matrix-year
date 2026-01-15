@@ -13,11 +13,10 @@
 use anyhow::{Context, Result};
 use futures_util::StreamExt;
 use std::collections::HashMap;
-use std::fs;
 use std::path::Path;
 
+use crate::account_selector::AccountSelector;
 use crate::crawl_db;
-use crate::login::resolve_data_root;
 use crate::window::WindowScope;
 
 mod types;
@@ -63,45 +62,15 @@ pub async fn run(window: String, user_id_flag: Option<String>) -> Result<()> {
         window,
     );
 
-    // Discover accounts
-    let data_root = resolve_data_root()?;
-    let accounts_root = data_root.join("accounts");
+    // Select accounts (with multi-select enabled)
+    let mut selector = AccountSelector::new()?;
+    let accounts = selector.select_accounts(user_id_flag, true)?;
 
-    if !accounts_root.exists() {
-        eprintln!("⚠️  No accounts found. Please run 'my login' first.");
-        return Ok(());
-    }
-
-    let mut target_accounts = Vec::new();
-
-    if let Some(uid) = user_id_flag {
-        // Single account specified
-        target_accounts.push(uid);
-    } else {
-        // Discover all accounts
-        for entry in fs::read_dir(&accounts_root).context("Failed to read accounts directory")? {
-            let entry = entry?;
-            if entry.file_type()?.is_dir() {
-                let dir_name = entry.file_name();
-                if let Some(account_id) = dir_name.to_str() {
-                    // Convert dir name back to Matrix user ID (reverse of account_id_to_dirname)
-                    let user_id = account_id.replace('_', ":");
-                    target_accounts.push(user_id);
-                }
-            }
-        }
-    }
-
-    if target_accounts.is_empty() {
-        eprintln!("⚠️  No accounts found.");
-        return Ok(());
-    }
-
-    eprintln!("🔍 Found {} account(s)", target_accounts.len());
+    eprintln!("� Crawling {} account(s)", accounts.len());
 
     // Crawl each account
-    for account_id in target_accounts {
-        crawl_account(&account_id, &accounts_root, &window_scope)
+    for (account_id, account_dir) in &accounts {
+        crawl_account(account_id, account_dir, &window_scope)
             .await
             .unwrap_or_else(|e| {
                 eprintln!("❌ Error crawling {}: {}", account_id, e);
@@ -122,13 +91,13 @@ pub async fn run(window: String, user_id_flag: Option<String>) -> Result<()> {
 /// 5. Crawls rooms in parallel with progress reporting
 async fn crawl_account(
     account_id: &str,
-    accounts_root: &Path,
+    account_dir: &Path,
     window_scope: &WindowScope,
 ) -> Result<()> {
     eprintln!("📱 Crawling account: {}", account_id);
 
     // 1) Account setup
-    let (_account_dir, client, db) = setup_account(account_id, accounts_root)
+    let (_account_dir_path, client, db) = setup_account(account_id, account_dir)
         .await
         .context("Account setup failed")?;
 

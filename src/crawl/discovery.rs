@@ -9,7 +9,6 @@ use std::path::Path;
 
 use super::types::{RoomInfo, RoomJoinState};
 use crate::crawl_db;
-use crate::login::account_id_to_dirname;
 
 /// State event types needed for room list sync.
 /// Inspired by: https://github.com/matrix-org/matrix-rust-sdk/blob/matrix-sdk-ui-0.16.0/crates/matrix-sdk-ui/src/room_list_service/mod.rs#L81
@@ -40,25 +39,23 @@ const SLIDING_SYNC_BATCH_SIZE: usize = 50;
 /// # Arguments
 ///
 /// * `account_id` - Matrix user ID (e.g., "@alice:example.org")
-/// * `accounts_root` - Path to the accounts directory
+/// * `account_dir` - Path to the account directory
 pub async fn setup_account(
     account_id: &str,
-    accounts_root: &Path,
+    account_dir: &Path,
 ) -> Result<(std::path::PathBuf, matrix_sdk::Client, crawl_db::CrawlDb)> {
-    let dir_name = account_id_to_dirname(account_id);
-    let account_dir = accounts_root.join(&dir_name);
     if !account_dir.exists() {
         anyhow::bail!("Account directory not found: {}", account_dir.display());
     }
 
-    let db = crawl_db::CrawlDb::init(&account_dir)
+    let db = crawl_db::CrawlDb::init(account_dir)
         .context("Failed to initialize crawl metadata database")?;
 
-    let client = crate::sdk::restore_client_for_account(&account_dir, account_id)
+    let client = crate::sdk::restore_client_for_account(account_dir, account_id)
         .await
         .context("Failed to restore client")?;
 
-    Ok((account_dir, client, db))
+    Ok((account_dir.to_path_buf(), client, db))
 }
 
 /// Discovers joined rooms and their latest event via sliding sync.
