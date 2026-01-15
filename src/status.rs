@@ -1,10 +1,10 @@
+use crate::account_selector::AccountSelector;
 use crate::login::{account_id_to_dirname, resolve_data_root};
 use crate::sdk::restore_client_for_account;
 use crate::timefmt::format_timestamp;
 use anyhow::{Context, Result};
 use matrix_sdk::Client;
 use std::collections::HashMap;
-use std::fs;
 use std::path::Path;
 use unicode_width::UnicodeWidthStr;
 
@@ -309,38 +309,14 @@ pub async fn check_verification_state(
 }
 
 pub async fn run(user_id_flag: Option<String>, list: bool) -> Result<()> {
-    // Get data root first
-    let data_root = resolve_data_root()?;
-    let accounts_root = data_root.join("accounts");
-    if !accounts_root.exists() {
-        println!("No accounts found.");
-        return Ok(());
-    }
-
     // If --list is requested, show room listing instead of status
     if list {
-        // Determine which accounts to list rooms for
-        let mut accounts = Vec::new();
-        if let Some(uid) = user_id_flag {
-            accounts.push(uid);
-        } else {
-            for entry in fs::read_dir(&accounts_root)? {
-                let entry = entry?;
-                if entry.file_type()?.is_dir() {
-                    let dirname = entry.file_name().to_string_lossy().to_string();
-                    let uid = dirname.replace('_', ":");
-                    accounts.push(uid);
-                }
-            }
-        }
-
-        if accounts.is_empty() {
-            println!("No accounts found.");
-            return Ok(());
-        }
+        // Select accounts (with multi-select enabled)
+        let mut selector = AccountSelector::new()?;
+        let accounts = selector.select_accounts(user_id_flag, true)?;
 
         // List rooms for each account
-        for account_id in &accounts {
+        for (account_id, _account_dir) in &accounts {
             if accounts.len() > 1 {
                 println!("\nAccount: {}", account_id);
             }
@@ -355,28 +331,10 @@ pub async fn run(user_id_flag: Option<String>, list: bool) -> Result<()> {
     }
 
     // Otherwise, show normal status
+    let mut selector = AccountSelector::new()?;
+    let accounts = selector.select_accounts(user_id_flag, true)?;
 
-    let mut accounts = Vec::new();
-    if let Some(uid) = user_id_flag {
-        accounts.push(uid);
-    } else {
-        for entry in fs::read_dir(&accounts_root)? {
-            let entry = entry?;
-            if entry.file_type()?.is_dir() {
-                let dirname = entry.file_name().to_string_lossy().to_string();
-                let uid = dirname.replace('_', ":");
-                accounts.push(uid);
-            }
-        }
-    }
-
-    if accounts.is_empty() {
-        println!("No accounts found.");
-        return Ok(());
-    }
-
-    for account_id in &accounts {
-        let account_dir = accounts_root.join(account_id_to_dirname(account_id));
+    for (account_id, account_dir) in &accounts {
         println!("\nAccount: {}", account_id);
         if !account_dir.exists() {
             println!("  [!] Account directory missing: {}", account_dir.display());
@@ -385,7 +343,7 @@ pub async fn run(user_id_flag: Option<String>, list: bool) -> Result<()> {
         println!("  Directory: {}", account_dir.display());
 
         // Use check_account_status to get all status info
-        match check_account_status(&account_dir, account_id).await {
+        match check_account_status(account_dir, account_id).await {
             Ok(status) => {
                 println!(
                     "  meta/session.json: {}",
@@ -443,7 +401,7 @@ pub async fn run(user_id_flag: Option<String>, list: bool) -> Result<()> {
         }
 
         // Display SDK coverage stats
-        match crate::crawl_db::CrawlDb::init(&account_dir) {
+        match crate::crawl_db::CrawlDb::init(account_dir) {
             Ok(db) => {
                 match db.room_count() {
                     Ok(count) => {

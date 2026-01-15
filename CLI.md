@@ -23,9 +23,7 @@ my logout [--user-id <@alice:example.org>]
 - Supports multi-account: pass `--user-id` to target a specific account, otherwise an interactive prompt appears after showing existing accounts.
 
 **Logout Behavior:**
-- `--user-id` is optional. If omitted:
-  - With a single account: prompts for confirmation and proceeds.
-  - With multiple accounts: shows interactive selection including an "All" option.
+- `--user-id` is optional. If omitted, prompts to select from existing accounts.
 - Asks for user confirmation displaying the user ID(s) before proceeding.
 - Removes stored credentials and deletes local account data from `.my/accounts/<account>/`.
 
@@ -46,7 +44,7 @@ my status [--list] [--user-id <@alice:example.org>]
 
 **Options:**
 - `--list` — Show detailed room listing with crawl status for each room.
-- `--user-id <@alice:example.org>` — (Optional) Target a specific account. If omitted with `--list`, lists rooms for all accounts.
+- `--user-id <@alice:example.org>` — (Optional) Target a specific account. If omitted, prompts to select from existing accounts.
 
 **Behavior:**
 
@@ -93,7 +91,7 @@ my crawl <window> [--user-id <@alice:example.org>]
   - `2025-W12` — ISO week (e.g., week 12 of 2025)
   - `2025-03-15` — Specific day
   - `life` — All messages from epoch onward (entire message history)
-- `--user-id <@alice:example.org>` — (Optional) Crawl a specific logged-in account. If omitted, crawls all logged-in accounts.
+- `--user-id <@alice:example.org>` — (Optional) Crawl a specific logged-in account. If omitted, prompts to select from existing accounts.
 
 **Behavior:**
 - **Stage 1:** Discovers rooms via sliding sync (growing mode, batch size 50, 1 event per room to capture latest).
@@ -147,7 +145,7 @@ my reset [--user-id <@alice:example.org>]
 ```
 
 **Arguments:**
-- `--user-id <@alice:example.org>` — (Optional) Reset a specific logged-in account. If omitted, resets all logged-in accounts.
+- `--user-id <@alice:example.org>` — (Optional) Reset a specific logged-in account. If omitted, prompts to select from existing accounts.
 
 
 **Examples:**

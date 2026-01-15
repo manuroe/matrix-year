@@ -3,52 +3,19 @@
 /// This clears the crawl metadata database and SDK caches while preserving credentials.
 use anyhow::{Context, Result};
 use std::fs;
-use std::path::PathBuf;
+
+use crate::account_selector::AccountSelector;
 
 /// Run the reset command
 pub async fn run(user_id: Option<String>) -> Result<()> {
-    let data_dir = crate::login::resolve_data_root()?;
-    let accounts_dir = data_dir.join("accounts");
-
-    if !accounts_dir.exists() {
-        eprintln!("No accounts found");
-        return Ok(());
-    }
-
-    // Get list of accounts to reset
-    let accounts = if let Some(ref uid) = user_id {
-        vec![PathBuf::from(crate::login::account_id_to_dirname(uid))]
-    } else {
-        // Reset all accounts
-        fs::read_dir(&accounts_dir)
-            .context("Failed to read accounts directory")?
-            .filter_map(|entry| {
-                let entry = entry.ok()?;
-                if entry.file_type().ok()?.is_dir() {
-                    Some(entry.file_name().into())
-                } else {
-                    None
-                }
-            })
-            .collect()
-    };
-
-    if accounts.is_empty() {
-        eprintln!("No accounts to reset");
-        return Ok(());
-    }
+    // Select accounts (with multi-select enabled)
+    let mut selector = AccountSelector::new()?;
+    let accounts = selector.select_accounts(user_id, true)?;
 
     eprintln!("🔄 Resetting {} account(s)", accounts.len());
 
-    for account_dirname in accounts {
-        let account_dir = accounts_dir.join(&account_dirname);
-
-        if !account_dir.exists() {
-            eprintln!("⚠️  Account not found: {}", account_dirname.display());
-            continue;
-        }
-
-        eprintln!("🧹 Resetting account: {}", account_dirname.display());
+    for (account_id, account_dir) in &accounts {
+        eprintln!("🧹 Resetting account: {}", account_id);
 
         // 1. Remove crawl metadata database
         let db_path = account_dir.join("db.sqlite");

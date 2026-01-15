@@ -1,4 +1,5 @@
 // Library exports for testing
+pub mod account_selector;
 pub mod crawl;
 pub mod crawl_db;
 pub mod login;

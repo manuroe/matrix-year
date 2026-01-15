@@ -222,3 +222,15 @@ All 36 tests passing. Ready for review.
 > update CLI.md with the new option
 
 > PR it following agents.md
+
+## PR: Centralize account selection with AccountSelector module
+
+> The account selection appears in all the commands. Factorise this using a new account selector module so that:
+
+if there is a single account, it returns it
+if there are several, the module list them as we do for my logout
+By default, it is possible to select multiple accounts, but this module should have an option to disable the multiselection.
+
+By default, no account is selected but the selector remembers the last choice. The last choice is global and shared with all the commands but it is different depending if multiselection is disabled or not.
+
+> and a bit more
