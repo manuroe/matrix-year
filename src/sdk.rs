@@ -21,18 +21,19 @@ const MIN_SYNC_ITERATIONS_FOR_VERIFICATION: usize = 3;
 ///
 /// This loads the session metadata and credentials, then recreates the client
 /// with the same homeserver and encryption state. Also initializes SDK logging
-/// for the account.
+/// for the account after successful validation.
 pub async fn restore_client_for_account(account_dir: &Path, account_id: &str) -> Result<Client> {
     use matrix_sdk::authentication::matrix::MatrixSession;
     use matrix_sdk::ruma::UserId;
     use matrix_sdk::{SessionMeta, SessionTokens};
 
-    // Initialize SDK logging for this account
-    crate::logging::init_account_logging(account_dir, account_id)
-        .context("Failed to initialize SDK logging")?;
-
     let sdk_store_dir = account_dir.join("sdk");
     let session_path = account_dir.join("meta/session.json");
+
+    // Validate session files exist before initializing logging
+    if !session_path.exists() {
+        anyhow::bail!("Session file not found: {}", session_path.display());
+    }
 
     let session_meta: serde_json::Value = serde_json::from_slice(&fs::read(&session_path)?)?;
     let homeserver = session_meta["homeserver"]
@@ -48,6 +49,10 @@ pub async fn restore_client_for_account(account_dir: &Path, account_id: &str) ->
     let access_token = secrets_store
         .get_access_token()
         .context("No access token stored")?;
+
+    // Initialize SDK logging now that we've validated the session exists
+    crate::logging::init_account_logging(account_dir, account_id)
+        .context("Failed to initialize SDK logging")?;
 
     let homeserver_url = Url::parse(homeserver)?;
 

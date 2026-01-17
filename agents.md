@@ -533,6 +533,44 @@ The project includes integration tests that require live Matrix account credenti
 
 **Location:** Per-account logs are stored at `{account_dir}/sdk_logs/sdk.log`.
 
+**Session separators:** Each command invocation creates a new session marker:
+```
+================================================================================
+[2026-01-16 13:15:33] New session: @user:example.org
+================================================================================
+```
+
+**Log levels:**
+- App logs: `info` level (errors, warnings, important operations)
+- SDK logs: `debug` level (detailed internal operations, HTTP requests, encryption)
+- Override via `RUST_LOG` environment variable (e.g., `RUST_LOG=trace` or `RUST_LOG=matrix_sdk=trace`)
+
+**Implementation:**
+- Logging is centralized in `restore_client_for_account()` in `src/sdk.rs`
+- All commands that use the SDK automatically get logging (crawl, status, etc.)
+- Uses `tracing` framework with file appender (no log rotation - appends indefinitely)
+- The tracing subscriber is initialized once per process; when processing multiple accounts in a single command execution, all logs go to the first account's log file, but session separators delineate each account's operations
+
+**Important caveats:**
+- **Single initialization**: The tracing subscriber can only be initialized once per process. When multiple accounts are processed in the same execution, only the first account's log directory is used for all logging
+- **No rotation**: Logs append indefinitely without size or time-based rotation. Monitor disk usage if running frequently
+- **Initialization timing**: Logging is initialized after session validation but before client restoration to ensure only valid sessions generate logs
+
+**Debugging with logs:**
+When investigating SDK-related issues (authentication failures, sync errors, encryption problems):
+1. Locate the account's log file: `{account_dir}/sdk_logs/sdk.log`
+2. Find the relevant session by timestamp in the session separator
+3. Search for `ERROR` or `WARN` entries
+4. Look for HTTP status codes (e.g., `status=401`, `status=500`)
+5. Check encryption-related messages (e.g., `keys_upload`, `verification_state`)
+6. For multi-account operations, remember that all accounts' logs may be in the first account's log file
+
+Example log entries:
+```
+2026-01-16T12:09:48.377056Z DEBUG restore_session: matrix_sdk::authentication::matrix: 719: Restoring Matrix auth session
+2026-01-16T12:09:50.121786Z  WARN sync_once: matrix_sdk::encryption: 776: Error when sending out an outgoing E2EE request
+```
+
 ## 11. Git & GitHub Workflow
 
 ### Git User Configuration
