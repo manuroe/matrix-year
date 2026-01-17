@@ -234,3 +234,17 @@ By default, it is possible to select multiple accounts, but this module should h
 By default, no account is selected but the selector remembers the last choice. The last choice is global and shared with all the commands but it is different depending if multiselection is disabled or not.
 
 > and a bit more
+
+## PR: Add per-account SDK logging with session separators
+> Enable SDK logs and store them per account. They must be always enabled.
+> Check ../matrix-rust-sdk
+> ok for the separator but add break lines to make the separation easier to catch.
+> SDK logs must be per account and stored in the working dir of each account.
+> implement this.
+> have you checked it works?
+> hmm, ok. Run `my status` with the account stored here
+> Print me sdk log file here
+> `my status` must generate SDK logs. Show me the output of this command
+> can log setup centralised?
+> document SDK logging in agents.md for debugging
+> PR it

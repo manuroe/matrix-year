@@ -527,6 +527,12 @@ The project includes integration tests that require live Matrix account credenti
 - Keep shared utilities (timestamp formatting, etc.) de-duplicated to avoid drift across modules.
 - Use `unicode-width` crate for proper display width calculations when aligning text with Unicode content (emoji, CJK characters, zero-width joiners). Character count (`.chars().count()`) differs from display width (columns) for many Unicode strings.
 
+### SDK Logging
+
+**Purpose:** The project automatically logs all Matrix SDK operations to help debug issues with sync, encryption, authentication, and network requests.
+
+**Location:** Per-account logs are stored at `{account_dir}/sdk_logs/sdk.log`.
+
 ## 11. Git & GitHub Workflow
 
 ### Git User Configuration

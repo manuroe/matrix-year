@@ -5,6 +5,7 @@ use std::path::PathBuf;
 mod account_selector;
 mod crawl;
 mod crawl_db;
+mod logging;
 mod login;
 mod logout;
 mod renderer;
