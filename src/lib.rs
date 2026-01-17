@@ -2,6 +2,7 @@
 pub mod account_selector;
 pub mod crawl;
 pub mod crawl_db;
+pub mod logging;
 pub mod login;
 pub mod logout;
 pub mod reset;
