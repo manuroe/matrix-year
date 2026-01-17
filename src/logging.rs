@@ -1,7 +1,7 @@
 /// Per-account SDK logging configuration.
 ///
 /// Logs are stored in the account's working directory under `sdk_logs/`.
-/// Each crawl session appends to the log file with clear separators.
+/// Each SDK session appends to the log file with clear separators.
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, Once};
@@ -83,7 +83,7 @@ pub fn init_account_logging(account_dir: &Path, account_id: &str) -> Result<()> 
         .append(true)
         .open(actual_log_dir.join("sdk.log"))
     {
-        if let Err(e) = writeln!(file, "{}", separator) {
+        if let Err(e) = write!(file, "{}", separator) {
             tracing::warn!("Failed to write session separator to log file: {}", e);
         } else if let Err(e) = file.flush() {
             tracing::warn!("Failed to flush session separator to log file: {}", e);
