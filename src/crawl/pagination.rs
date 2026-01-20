@@ -179,6 +179,7 @@ where
                 match msg_event {
                     AnySyncMessageLikeEvent::RoomMessage(_)
                     | AnySyncMessageLikeEvent::RoomEncrypted(_) => {
+                        // Window-specific stats
                         if is_user_event {
                             stats.user_events += 1;
 
