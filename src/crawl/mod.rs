@@ -384,20 +384,15 @@ pub enum RoomType {
 
 /// Classifies a room as DM, public, or private.
 ///
-/// Uses join rules and member count to determine room type:
-/// - DM: exactly 2 members and invite-only
+/// Uses the Matrix SDK's direct-message flag and join rules to determine room type:
+/// - DM: room is marked as a direct message (`is_direct() == true`)
 /// - Public: join_rules = public
-/// - Private: everything else (invite-only with >2 members)
+/// - Private: everything else (non-public rooms that are not marked as DMs)
 async fn classify_room_type(room: &matrix_sdk::Room) -> Result<RoomType> {
     use matrix_sdk::ruma::events::room::join_rules::JoinRule;
 
-    // Get member count (joined + invited)
-    let joined_count = room.joined_members_count();
-    let invited_count = room.invited_members_count();
-    let member_count = joined_count + invited_count;
-
-    // Check if room is DM (exactly 2 members)
-    if member_count == 2 {
+    // Check if room is explicitly marked as a direct message
+    if room.is_direct().await? {
         return Ok(RoomType::Dm);
     }
 

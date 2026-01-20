@@ -437,13 +437,9 @@ fn compute_peaks(
         .iter()
         .max_by_key(|(_, &count)| count)
         .map(|(hour, &messages)| {
-            // Find the date for this peak hour (use the first day with this hour's peak)
-            // This is an approximation; ideally we'd track hour-per-day
-            let date = by_day
-                .iter()
-                .max_by_key(|(_, &count)| count)
-                .map(|(day, _)| day.clone())
-                .unwrap_or_default();
+            // With current aggregates we cannot reliably determine the exact date
+            // on which this hour had its peak activity, so we leave it unspecified.
+            let date = String::new();
 
             PeakHour {
                 hour: hour.clone(),
@@ -515,9 +511,9 @@ mod tests {
         DetailedPaginationStats {
             fully_crawled: true,
             oldest_event_id: Some("$oldest".to_string()),
-            oldest_ts: Some(1704067200000), // 2024-01-01
+            oldest_ts: Some(1735689600000), // 2025-01-01
             newest_event_id: Some("$newest".to_string()),
-            newest_ts: Some(1735689599999), // 2024-12-31
+            newest_ts: Some(1767225599999), // 2025-12-31
             total_events: 20,
             user_events: 10,
             by_year,
