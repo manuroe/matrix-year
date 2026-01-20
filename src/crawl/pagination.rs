@@ -135,11 +135,11 @@ where
         };
 
         // Track oldest/newest events for metadata (regardless of window)
-        if stats.oldest_ts.map_or(true, |old_ts| ts_millis < old_ts) {
+        if stats.oldest_ts.is_none_or(|old_ts| ts_millis < old_ts) {
             stats.oldest_ts = Some(ts_millis);
             stats.oldest_event_id = event_id_str.clone();
         }
-        if stats.newest_ts.map_or(true, |new_ts| ts_millis > new_ts) {
+        if stats.newest_ts.is_none_or(|new_ts| ts_millis > new_ts) {
             stats.newest_ts = Some(ts_millis);
             stats.newest_event_id = event_id_str.clone();
         }
@@ -289,11 +289,11 @@ where
             };
 
             // Track oldest/newest events for metadata (regardless of window)
-            if stats.oldest_ts.map_or(true, |old_ts| ts_millis < old_ts) {
+            if stats.oldest_ts.is_none_or(|old_ts| ts_millis < old_ts) {
                 stats.oldest_ts = Some(ts_millis);
                 stats.oldest_event_id = event_id_str.clone();
             }
-            if stats.newest_ts.map_or(true, |new_ts| ts_millis > new_ts) {
+            if stats.newest_ts.is_none_or(|new_ts| ts_millis > new_ts) {
                 stats.newest_ts = Some(ts_millis);
                 stats.newest_event_id = event_id_str.clone();
             }
