@@ -17,9 +17,10 @@ use std::path::Path;
 
 use crate::account_selector::AccountSelector;
 use crate::crawl_db;
+use crate::stats;
 use crate::window::WindowScope;
 
-mod types;
+pub mod types;
 pub use types::RoomCrawlStats;
 use types::RoomJoinState;
 
@@ -30,7 +31,6 @@ mod discovery;
 use discovery::{fetch_room_list_via_sliding_sync, setup_account};
 
 mod pagination;
-use pagination::crawl_room_events;
 
 pub mod progress;
 use progress::CrawlProgress;
@@ -44,11 +44,16 @@ const MAX_CONCURRENCY: usize = 8;
 /// Discovers all logged-in accounts and crawls them for the requested time window.
 /// Optionally filters to a specific account if `user_id_flag` is provided.
 ///
+/// Returns a vector of (account_id, Stats) tuples for each crawled account.
+///
 /// # Arguments
 ///
 /// * `window` - Time window specification (e.g., "2025", "2025-03", "life")
 /// * `user_id_flag` - Optional Matrix user ID to restrict crawling to one account
-pub async fn run(window: String, user_id_flag: Option<String>) -> Result<()> {
+pub async fn run(
+    window: String,
+    user_id_flag: Option<String>,
+) -> Result<Vec<(String, stats::Stats)>> {
     // Parse the window
     let window_scope = WindowScope::parse(&window).context("Failed to parse window")?;
 
@@ -68,17 +73,22 @@ pub async fn run(window: String, user_id_flag: Option<String>) -> Result<()> {
 
     eprintln!("🔍 Crawling {} account(s)", accounts.len());
 
-    // Crawl each account
+    // Crawl each account and collect stats
+    let mut account_stats = Vec::new();
     for (account_id, account_dir) in &accounts {
-        crawl_account(account_id, account_dir, &window_scope)
-            .await
-            .unwrap_or_else(|e| {
+        match crawl_account(account_id, account_dir, &window_scope).await {
+            Ok(stats) => {
+                account_stats.push((account_id.clone(), stats));
+            }
+            Err(e) => {
                 eprintln!("❌ Error crawling {}: {}", account_id, e);
-            });
+                // Continue with other accounts on error
+            }
+        }
     }
 
     eprintln!("✅ Crawl complete");
-    Ok(())
+    Ok(account_stats)
 }
 
 /// Crawls a single account for the given time window.
@@ -89,11 +99,14 @@ pub async fn run(window: String, user_id_flag: Option<String>) -> Result<()> {
 /// 3. Decides which rooms need pagination
 /// 4. Records virgin rooms that were skipped
 /// 5. Crawls rooms in parallel with progress reporting
+/// 6. Aggregates room statistics into account-level Stats
+///
+/// Returns the computed Stats for the account.
 async fn crawl_account(
     account_id: &str,
     account_dir: &Path,
     window_scope: &WindowScope,
-) -> Result<()> {
+) -> Result<stats::Stats> {
     eprintln!("📱 Crawling account: {}", account_id);
 
     // 1) Account setup
@@ -113,7 +126,6 @@ async fn crawl_account(
 
     if joined_room_ids.is_empty() {
         eprintln!("ℹ️  No rooms to crawl");
-        return Ok(());
     }
 
     let (window_start_ts, window_end_ts) = window_scope.to_timestamp_range();
@@ -130,6 +142,7 @@ async fn crawl_account(
         .collect();
 
     let joined_rooms = client.joined_rooms();
+
     let rooms_to_crawl = select_rooms_to_crawl(
         &joined_rooms,
         &db,
@@ -150,7 +163,7 @@ async fn crawl_account(
 
     // 4) Crawl rooms (parallel pagination, sequential DB updates)
     let total_rooms = rooms_to_crawl.len();
-    let (success_count, error_count) =
+    let (success_count, error_count, room_stats_inputs) =
         crawl_rooms_parallel(rooms_to_crawl, window_scope, &db, account_id, total_rooms).await;
 
     eprintln!(
@@ -158,7 +171,19 @@ async fn crawl_account(
         success_count, error_count
     );
 
-    Ok(())
+    // 5) Build account-level stats from room statistics
+    // Note: Account profile fetch is not available in current SDK; passing None for now
+    let stats = crate::stats_builder::build_stats(
+        room_stats_inputs,
+        account_id,
+        None,
+        None,
+        window_scope,
+        joined_rooms.len(),
+    )
+    .context("Failed to build account stats")?;
+
+    Ok(stats)
 }
 
 /// Crawls a set of rooms in parallel, respecting concurrency limits.
@@ -166,18 +191,19 @@ async fn crawl_account(
 /// Uses async streams to manage concurrent pagination operations.
 /// Updates the database after each room completes.
 ///
-/// Returns tuple of (success_count, error_count).
+/// Returns tuple of (success_count, error_count, room_stats_inputs).
 async fn crawl_rooms_parallel(
     rooms: Vec<matrix_sdk::Room>,
     window_scope: &WindowScope,
     db: &crawl_db::CrawlDb,
     account_id: &str,
     total_rooms: usize,
-) -> (usize, usize) {
+) -> (usize, usize, Vec<crate::stats_builder::RoomStatsInput>) {
     let mut success_count = 0usize;
     let mut error_count = 0usize;
+    let mut room_stats_inputs = Vec::new();
 
-    let (window_start_ts, _) = window_scope.to_timestamp_range();
+    let (window_start_ts, window_end_ts) = window_scope.to_timestamp_range();
     let user_id = account_id.to_string();
 
     let progress = CrawlProgress::new(total_rooms);
@@ -187,11 +213,18 @@ async fn crawl_rooms_parallel(
         .map(move |room| {
             let uid = user_id.clone();
             let progress_for_room = progress_for_stream.clone();
-            crawl_single_room(room, window_start_ts, uid, progress_for_room, db)
+            crawl_single_room(
+                room,
+                window_start_ts,
+                window_end_ts,
+                uid,
+                progress_for_room,
+                db,
+            )
         })
         .buffer_unordered(MAX_CONCURRENCY);
 
-    while let Some((room, stats_res, spinner)) = stream.next().await {
+    while let Some((room, stats_res, room_type, detailed_stats, spinner)) = stream.next().await {
         // Finish spinner before printing results
         if let Some(ref sp) = spinner {
             sp.finish_and_clear();
@@ -215,7 +248,7 @@ async fn crawl_rooms_parallel(
                     // Mark as error
                     let _ =
                         db.set_crawl_status(&room_id, crawl_db::CrawlStatus::Error(e.to_string()));
-                    progress.println(&format!("  ✗ {} ({})", room_name, e));
+                    progress.println(&format!("  \x1b[31m✗\x1b[0m {} ({})", room_name, e));
                 } else {
                     success_count += 1;
                     // Mark as success and update event counts
@@ -233,6 +266,16 @@ async fn crawl_rooms_parallel(
                         stats.fully_crawled,
                     );
                     progress.println(&format!("  ✓ {}", formatted));
+
+                    // Collect room stats input for aggregation
+                    if let (Some(room_type), Some(detailed)) = (room_type, detailed_stats) {
+                        room_stats_inputs.push(crate::stats_builder::RoomStatsInput {
+                            room_id: stats.room_id,
+                            room_name: Some(stats.room_name),
+                            room_type,
+                            stats: detailed,
+                        });
+                    }
                 }
             }
             Err(e) => {
@@ -248,7 +291,7 @@ async fn crawl_rooms_parallel(
                     .ok()
                     .map(|n| n.to_string())
                     .unwrap_or_else(|| room.room_id().to_string());
-                progress.println(&format!("  ✗ {} ({})", room_name, e));
+                progress.println(&format!("  \x1b[31m✗\x1b[0m {} ({})", room_name, e));
             }
         }
 
@@ -257,22 +300,26 @@ async fn crawl_rooms_parallel(
 
     progress.finish();
 
-    (success_count, error_count)
+    (success_count, error_count, room_stats_inputs)
 }
 
 /// Crawls events from a single room.
 ///
 /// Sets up pagination and delegates to the pagination module.
-/// Returns the room, result, and optional spinner handle.
+/// Collects detailed statistics for stats aggregation.
+/// Returns the room, result, room type, detailed stats, and optional spinner handle.
 async fn crawl_single_room(
     room: matrix_sdk::Room,
     window_start_ts: Option<i64>,
+    window_end_ts: i64,
     user_id: String,
     progress: CrawlProgress,
     db: &crawl_db::CrawlDb,
 ) -> (
     matrix_sdk::Room,
     Result<RoomCrawlStats>,
+    Option<RoomType>,
+    Option<types::DetailedPaginationStats>,
     Option<indicatif::ProgressBar>,
 ) {
     // Fetch the room's display name before creating the progress callback
@@ -283,7 +330,7 @@ async fn crawl_single_room(
         .map(|n| n.to_string())
         .unwrap_or_else(|| room.room_id().to_string());
 
-    let (progress_callback, spinner) = progress.make_callback(room_name);
+    let (progress_callback, spinner) = progress.make_callback(room_name.clone());
 
     // Mark room as in-progress
     let room_id = room.room_id().to_string();
@@ -294,7 +341,70 @@ async fn crawl_single_room(
         );
     }
 
-    let stats_res = crawl_room_events(&room, window_start_ts, &user_id, &*progress_callback).await;
+    // Setup event cache and collect detailed stats (single pagination)
+    // Note: Keep drop_handles alive throughout pagination to maintain cache subscription
+    let room_event_cache_res = pagination::setup_event_cache(&room).await;
 
-    (room, stats_res, spinner)
+    let (stats_res, detailed_stats, room_type) =
+        if let Ok((room_event_cache, _drop_handles)) = room_event_cache_res {
+            // Call the unified pagination function that collects both basic and detailed stats
+            match pagination::paginate_and_collect_detailed_stats(
+                &room,
+                &room_event_cache,
+                window_start_ts,
+                window_end_ts,
+                &user_id,
+                &room_name,
+                None, // No initial newest event - start from current
+                None, // No initial newest ts
+                &*progress_callback,
+            )
+            .await
+            {
+                Ok((crawl_stats, detailed)) => {
+                    let room_type = classify_room_type(&room).await.ok();
+                    (Ok(crawl_stats), Some(detailed), room_type)
+                }
+                Err(e) => (Err(e), None, None),
+            }
+        } else {
+            (Err(room_event_cache_res.unwrap_err()), None, None)
+        };
+
+    (room, stats_res, room_type, detailed_stats, spinner)
+}
+
+/// Room classification (DM, public, private).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RoomType {
+    Dm,
+    Public,
+    Private,
+}
+
+/// Classifies a room as DM, public, or private.
+///
+/// Uses join rules and member count to determine room type:
+/// - DM: exactly 2 members and invite-only
+/// - Public: join_rules = public
+/// - Private: everything else (invite-only with >2 members)
+async fn classify_room_type(room: &matrix_sdk::Room) -> Result<RoomType> {
+    use matrix_sdk::ruma::events::room::join_rules::JoinRule;
+
+    // Get member count (joined + invited)
+    let joined_count = room.joined_members_count();
+    let invited_count = room.invited_members_count();
+    let member_count = joined_count + invited_count;
+
+    // Check if room is DM (exactly 2 members)
+    if member_count == 2 {
+        return Ok(RoomType::Dm);
+    }
+
+    // Get join rules
+    let join_rule = room.join_rule();
+    match join_rule {
+        Some(JoinRule::Public) => Ok(RoomType::Public),
+        _ => Ok(RoomType::Private),
+    }
 }

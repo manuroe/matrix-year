@@ -52,12 +52,14 @@ Raw events are stored in the Matrix SDK's encrypted database; the crawler refere
 
 - Raw Matrix events (stored in SDK database)
 - Crawl metadata per room (oldest/newest event IDs and timestamps, fully-crawled flag)
+- Account-level statistics JSON file (saved to `accounts/<account>/stats-<window>.json`)
 
 ### Rules
 
-- Crawling **must not compute stats**
-- Crawling **must not transform message content**
+- Crawling **must not transform raw message content** (events are stored as-is in SDK database)
 - Always crawl in two stages: discovery first, then conditional pagination
+- After pagination completes, build statistics from cached events in a third stage
+- Statistics generation is **deterministic and recomputable** from the same event set
 
 ---
 
@@ -109,6 +111,11 @@ Notes:
 
 - This metadata contains no message content; raw events remain in the Matrix SDK's encrypted store.
 - The storage is an implementation detail; the behavior above is the contract renderers and other modules can rely on.
+
+Important clarifications:
+
+- Overlap detection uses the effective newest timestamp defined as `max(DB.newest, discovery.latest)` to avoid false negatives when the server has newer events than our local cache.
+- Progress output’s “from” date tracks oldest/newest timestamps before window filtering, ensuring it monotonically gets older during back‑pagination.
 
 ---
 
@@ -179,27 +186,34 @@ The abstraction allows switching storage backends (keychain, encrypted files, et
 
 ---
 
-### Stats Cache (SQLite)
+### Stats Output
 
-Each account has a **separate SQLite database for derived statistics**:
+Each account stores **computed statistics as JSON files**:
 
 ```text
-accounts/<account>/stats.sqlite  (future - currently using db.sqlite)
+accounts/<account>/stats-<window>.json
 ```
+
+Examples:
+- `stats-2025.json` (year window)
+- `stats-2025-03.json` (month window)
+- `stats-2025-W12.json` (week window)
+- `stats-2025-03-15.json` (day window)
+- `stats-life.json` (entire history)
 
 Purpose:
 
-- Cache computed yearly statistics
-- Avoid re-parsing all Matrix events on subsequent requests
-- Store metadata (last computation time, data version)
+- Store computed statistics for each crawled window
+- Enable direct use by renderers without recomputation
+- Validate against JSON schema for consistency
 
-This database **does not** store:
+These files **do not** store:
 
 - Raw Matrix events (handled by SDK)
 - Message content
 - Encryption keys or tokens
 
-Render outputs remain **outside** the database.
+Note: Future versions may cache stats in SQLite (`stats.sqlite`) to avoid redundant computation, but the current implementation writes JSON files directly during crawl.
 
 ---
 
@@ -218,31 +232,22 @@ The SDK provides:
 
 The project **does not** directly manage Matrix event storage.
 
-### Stats cache schema (conceptual)
+### Stats schema
 
-The project's SQLite database stores **derived statistics only**:
+Stats are stored as JSON files conforming to the schema in `stats_schema.json`:
 
-```sql
-stats_cache(
-  scope_type TEXT,
-  scope_key TEXT,
-  account_id TEXT,
-  computed_at INTEGER,
-  stats_json TEXT,
-  PRIMARY KEY (scope_type, scope_key, account_id)
-)
+- Schema version: 1
+- Required fields: scope, account, coverage, summary
+- Optional sections: activity, rooms, reactions, created_rooms, fun
+- All temporal data uses numeric formats (months: "01"-"12", weekdays: "1"-"7")
 
-meta(
-  key TEXT PRIMARY KEY,
-  value TEXT
-)
-```
+See [stats_spec.md](stats_spec.md) and [stats_schema.json](stats_schema.json) for complete schema documentation.
 
 ### Guarantees
 
 - Stats are deterministic for a given event set
 - Stats can be recomputed from SDK data at any time
-- No message content is stored in the stats cache
+- No message content is stored in stats files
 
 ---
 
@@ -251,6 +256,8 @@ meta(
 ### Purpose
 
 Convert raw events into **scope-aware derived statistics** (year, month, week, day, life).
+
+**Invoked by:** `my crawl` command automatically after pagination completes.
 
 ### Properties
 
@@ -376,6 +383,12 @@ my crawl <window> --user-id @alice:example.org  # Crawl specific account
 
 Windows: `2025`, `2025-03`, `2025-W12`, `2025-03-15`, `life`
 
+Crawl automatically:
+- Fetches events from Matrix homeserver
+- Stores events in SDK database
+- Builds account-level statistics
+- Saves stats to `accounts/<account>/stats-<window>.json`
+
 **Reset data:**
 
 ```bash
@@ -391,13 +404,6 @@ This clears crawl metadata and SDK data (event cache, crypto store) while preser
 my status                                   # Interactive selection if multiple accounts
 my status --list                            # Show room listing with crawl metadata
 my status --user-id @alice:example.org      # Check specific account
-```
-
-**Generate statistics:**
-
-```bash
-my stats 2025                               # Generate stats for all accounts
-my stats 2025 --user-id @alice:example.org  # Generate stats for specific account
 ```
 
 **Render reports:**

@@ -15,9 +15,16 @@ use crate::crawl_db;
 ///
 /// For **virgin rooms** (no metadata): crawl if the latest event is in/after the window start.
 ///
-/// For **known rooms**: crawl if:
+/// For **known rooms**: Always crawl rooms that overlap with the window to recompute stats,
+/// but only fetch new events if:
 /// - The old end of coverage (reaching window start or room creation) is incomplete, OR
 /// - The new end (reaching window end) is incomplete
+///
+/// This means rooms are always reprocessed to regenerate stats from cached events,
+/// but network pagination only happens when coverage is incomplete.
+///
+/// Rooms are skipped entirely if they have no events overlapping the window (virgin rooms
+/// with latest event before window start, or known rooms with newest event before window start).
 ///
 /// If the latest event from discovery exactly matches what's in the database, the new end
 /// is considered complete and only the old end matters.
@@ -54,26 +61,32 @@ pub fn should_crawl_room(
         return Ok(true);
     };
 
-    // Determine if we still need to extend the old end of coverage
-    let old_end_needs_crawl = match window_start_ts {
-        None => !meta.fully_crawled,
-        Some(start) => !meta.fully_crawled && meta.oldest_event_ts.is_none_or(|ts| ts > start),
-    };
-
-    // Determine if we need newer events to reach the window end
-    let mut new_end_needs_crawl = meta.newest_event_ts.is_none_or(|ts| ts < window_end_ts);
-
-    // If the latest event reported by discovery matches exactly what we have (id and ts),
-    // there's no need to crawl the new end. We still might need the old end.
-    if let Some((latest_id, latest_ts)) = latest_event {
-        if meta.newest_event_id.as_deref() == Some(latest_id)
-            && meta.newest_event_ts == Some(*latest_ts)
-        {
-            new_end_needs_crawl = false;
+    // For known rooms: skip only if we're certain there are no events in the window
+    // Consider discovery's latest event as authoritative for "new end" freshness.
+    if let Some(start) = window_start_ts {
+        let newest_known = meta.newest_event_ts;
+        let newest_discovery = latest_event.map(|(_, ts)| *ts);
+        let newest_effective = match (newest_known, newest_discovery) {
+            (Some(a), Some(b)) => std::cmp::max(a, b),
+            (Some(a), None) => a,
+            (None, Some(b)) => b,
+            (None, None) => 0,
+        };
+        if newest_effective < start {
+            // Effective newest (DB or discovery) is before window start: no overlap
+            return Ok(false);
         }
     }
 
-    Ok(old_end_needs_crawl || new_end_needs_crawl)
+    // If oldest known event is after window end, skip (no overlap)
+    if let Some(oldest_ts) = meta.oldest_event_ts {
+        if oldest_ts > window_end_ts {
+            return Ok(false);
+        }
+    }
+
+    // Room overlaps with window, always reprocess for stats
+    Ok(true)
 }
 
 /// Filters joined rooms to find which ones need crawling for the given window.
@@ -237,7 +250,7 @@ mod tests {
     }
 
     #[test]
-    fn needs_crawl_when_newest_before_window_start() -> anyhow::Result<()> {
+    fn skips_when_newest_before_window_start() -> anyhow::Result<()> {
         let (db, _dir) = setup_db()?;
         db.update_room_metadata(
             "!room",
@@ -249,12 +262,12 @@ mod tests {
         )?;
 
         let needs = should_crawl_room(&db, "!room", Some(2_000), 3_000, None)?;
-        assert!(needs, "stale newest timestamp should trigger a crawl");
+        assert!(!needs, "no overlap: newest before window start should skip");
         Ok(())
     }
 
     #[test]
-    fn skips_when_window_covered() -> anyhow::Result<()> {
+    fn reprocess_when_window_covered() -> anyhow::Result<()> {
         let (db, _dir) = setup_db()?;
         db.update_room_metadata(
             "!room",
@@ -266,12 +279,12 @@ mod tests {
         )?;
 
         let needs = should_crawl_room(&db, "!room", Some(1_000), 2_000, None)?;
-        assert!(!needs, "window fully covered should skip crawling");
+        assert!(needs, "overlap: always reprocess for stats even if covered");
         Ok(())
     }
 
     #[test]
-    fn skips_when_latest_matches_db() -> anyhow::Result<()> {
+    fn reprocess_when_latest_matches_db() -> anyhow::Result<()> {
         let (db, _dir) = setup_db()?;
         db.update_room_metadata(
             "!room",
@@ -284,7 +297,7 @@ mod tests {
 
         let latest = ("evt1".to_owned(), 1_500);
         let needs = should_crawl_room(&db, "!room", Some(1_000), 2_000, Some(&latest))?;
-        assert!(!needs, "matching newest event should not trigger crawl");
+        assert!(needs, "overlap: reprocess stats even if newest matches");
         Ok(())
     }
 
@@ -331,7 +344,7 @@ mod tests {
     }
 
     #[test]
-    fn skips_when_fully_crawled_and_window_end_covered() -> anyhow::Result<()> {
+    fn reprocess_when_fully_crawled_and_window_end_covered() -> anyhow::Result<()> {
         let (db, _dir) = setup_db()?;
         db.update_room_metadata(
             "!room",
@@ -344,7 +357,10 @@ mod tests {
 
         let latest = ("newest_evt".to_owned(), 3_000);
         let needs = should_crawl_room(&db, "!room", Some(1_000), 2_000, Some(&latest))?;
-        assert!(!needs, "fully crawled with window end covered should skip");
+        assert!(
+            needs,
+            "overlap: reprocess stats even if fully crawled and covered"
+        );
         Ok(())
     }
 
@@ -376,7 +392,7 @@ mod tests {
     }
 
     #[test]
-    fn skips_with_window_start_none_when_fully_crawled() -> anyhow::Result<()> {
+    fn reprocess_with_window_start_none_even_when_fully_crawled() -> anyhow::Result<()> {
         let (db, _dir) = setup_db()?;
         db.update_room_metadata(
             "!room",
@@ -389,7 +405,10 @@ mod tests {
 
         let latest = ("newest".to_owned(), 2_000);
         let needs = should_crawl_room(&db, "!room", None, 3_000, Some(&latest))?;
-        assert!(!needs, "window_start=None should skip if fully_crawled");
+        assert!(
+            needs,
+            "window_start=None: reprocess stats even if fully_crawled"
+        );
         Ok(())
     }
 
@@ -469,7 +488,7 @@ mod tests {
         ]);
 
         let selected = select_room_ids_to_crawl(&ids, &db, window_start, window_end, &latest);
-        assert_eq!(selected, vec!["!B".to_string()]);
+        assert_eq!(selected, vec!["!A".to_string(), "!B".to_string()]);
         Ok(())
     }
 

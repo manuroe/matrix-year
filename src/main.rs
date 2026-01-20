@@ -13,6 +13,7 @@ mod reset;
 mod sdk;
 mod secrets;
 mod stats;
+mod stats_builder;
 mod status;
 mod timefmt;
 mod window;
@@ -149,10 +150,35 @@ fn main() -> Result<()> {
                 return Ok(());
             }
             Commands::Crawl { window, user_id } => {
-                // Run crawl
-                tokio::runtime::Runtime::new()
+                // Run crawl and collect stats
+                let account_stats = tokio::runtime::Runtime::new()
                     .context("Failed to create Tokio runtime")?
                     .block_on(crawl::run(window, user_id))?;
+
+                // Write stats for each account
+                for (account_id, stats) in account_stats {
+                    // Get account data directory using existing helper
+                    let data_dir = login::resolve_data_root()?;
+                    let account_dirname = login::account_id_to_dirname(&account_id);
+                    let account_dir = data_dir.join("accounts").join(&account_dirname);
+                    let stats_filename = format!("stats-{}.json", stats.scope.key);
+                    let stats_path = account_dir.join(stats_filename);
+
+                    // Ensure account directory exists
+                    std::fs::create_dir_all(&account_dir).context(format!(
+                        "Failed to create account directory: {:?}",
+                        account_dir
+                    ))?;
+
+                    // Write stats JSON file
+                    let stats_json = serde_json::to_string_pretty(&stats)
+                        .context("Failed to serialize stats")?;
+                    std::fs::write(&stats_path, stats_json)
+                        .context(format!("Failed to write stats file: {:?}", stats_path))?;
+
+                    eprintln!("📊 Stats saved: {}", stats_path.display());
+                }
+
                 return Ok(());
             }
             Commands::Reset { user_id } => {

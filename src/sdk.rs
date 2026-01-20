@@ -85,6 +85,12 @@ pub async fn restore_client_for_account(account_dir: &Path, account_id: &str) ->
         .await
         .context("Failed to restore session")?;
 
+    // Subscribe event cache immediately so it captures all sync events
+    client
+        .event_cache()
+        .subscribe()
+        .context("Failed to subscribe event cache")?;
+
     Ok(client)
 }
 

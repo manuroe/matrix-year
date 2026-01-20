@@ -223,8 +223,6 @@ All 36 tests passing. Ready for review.
 
 > PR it following agents.md
 
-## PR: Centralize account selection with AccountSelector module
-
 > The account selection appears in all the commands. Factorise this using a new account selector module so that:
 
 if there is a single account, it returns it
@@ -248,3 +246,13 @@ By default, no account is selected but the selector remembers the last choice. T
 > can log setup centralised?
 > document SDK logging in agents.md for debugging
 > PR it
+
+## PR: Crawl → Stats Integration
+
+> `my crawl` is now able to use the Rust SDK to fetch the data. I now want it to build the stats of the user activity, which it initially out of the scope of this command. CLI.md and agents.md need to be updated.
+>
+> Now, I want it to generate the `Stats` data that it can output as a json file.
+>
+> I am fine if it reprocesses all the data everytime on the same crawl window as I am not sure how we could cache some stats on new DB. Each type of `Stats` scope compute the data differently.
+
+- Later prompts: Lost context after this prompt.
