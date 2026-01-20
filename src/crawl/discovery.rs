@@ -101,12 +101,6 @@ pub async fn fetch_room_list_via_sliding_sync(
         .await
         .context("Failed to build sliding sync")?;
 
-    // Ensure the global event cache is subscribed so room event caches can be queried.
-    client
-        .event_cache()
-        .subscribe()
-        .context("Failed to subscribe event cache")?;
-
     let sync_stream = sliding.sync();
     futures_util::pin_mut!(sync_stream);
 
@@ -150,6 +144,12 @@ pub async fn fetch_room_list_via_sliding_sync(
                 }
             }
         }
+    }
+
+    // Do one final sync iteration to ensure pagination sync state is updated with latest events
+    if let Some(result) = sync_stream.next().await {
+        result.context("Final sync iteration failed")?;
+        eprintln!("  🔄 Final sync iteration completed");
     }
 
     // Extract room list with latest events

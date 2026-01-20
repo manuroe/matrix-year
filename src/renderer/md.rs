@@ -172,7 +172,11 @@ fn render_peak_activity(output: &mut String, summary: &Summary) {
         }
 
         if let Some(ref hour) = peaks.hour {
-            let when = format!("{}:00 on {}", hour.hour, hour.date);
+            let when = if let Some(ref date) = hour.date {
+                format!("{}:00 on {}", hour.hour, date)
+            } else {
+                format!("{}:00", hour.hour)
+            };
 
             lines.push(format!(
                 "- 🕐 **Peak hour:** {} ({} messages)",

@@ -96,8 +96,10 @@ my crawl <window> [--user-id <@alice:example.org>]
 **Behavior:**
 - **Stage 1:** Discovers rooms via sliding sync (growing mode, batch size 50, 1 event per room to capture latest).
 - **Stage 2:** Paginates backward through historical events for rooms that need data within the window (batches of 100, parallel with 8 concurrent rooms).
+- **Stage 3:** Builds account-level statistics from crawled events and saves to `.my/accounts/<account>/stats-<window>.json`.
 - Shows live progress with animated spinners per room and sticky overall counter.
 - Stores all events in the SDK's encrypted SQLite database automatically.
+- Generates comprehensive statistics (temporal activity, room rankings, reactions, etc.) saved as JSON.
 
 **Sync Lifecycle:**
 - A single sliding sync session runs during crawl execution to discover rooms and capture latest events; behavior is the same for current and historical windows.
