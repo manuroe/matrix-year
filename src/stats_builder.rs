@@ -438,8 +438,10 @@ fn compute_peaks(
         .max_by_key(|(_, &count)| count)
         .map(|(hour, &messages)| {
             // With current aggregates we cannot reliably determine the exact date
-            // on which this hour had its peak activity, so we leave it unspecified.
-            let date = String::new();
+            // on which this hour had its peak activity. We therefore use the literal
+            // string "unknown" as a sentinel to indicate that the date is not available.
+            // This is not a real date value and should not be parsed as one.
+            let date = "unknown".to_string();
 
             PeakHour {
                 hour: hour.clone(),
@@ -511,9 +513,9 @@ mod tests {
         DetailedPaginationStats {
             fully_crawled: true,
             oldest_event_id: Some("$oldest".to_string()),
-            oldest_ts: Some(1735689600000), // 2025-01-01
+            oldest_ts: Some(1735689600000), // 2024-12-31 23:00:00 UTC (2025-01-01 in some timezones)
             newest_event_id: Some("$newest".to_string()),
-            newest_ts: Some(1767225599999), // 2025-12-31
+            newest_ts: Some(1767225599999), // 2025-12-31 23:59:59.999 UTC
             total_events: 20,
             user_events: 10,
             by_year,

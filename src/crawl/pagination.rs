@@ -119,11 +119,15 @@ where
         let event_id_str = event.event_id().map(|id| id.to_string());
 
         // Skip if already processed (deduplication)
-        if let Some(ref event_id) = event_id_str {
-            if processed_event_ids.contains(event_id) {
+        // For events without IDs, use timestamp as a proxy key (rare in Matrix)
+        let dedup_key = event_id_str
+            .clone()
+            .or_else(|| event.timestamp().map(|ts| format!("ts-{}", ts.get())));
+        if let Some(ref key) = dedup_key {
+            if processed_event_ids.contains(key) {
                 continue;
             }
-            processed_event_ids.insert(event_id.clone());
+            processed_event_ids.insert(key.clone());
         }
 
         let ts_millis_opt: Option<i64> = event.timestamp().map(|ts| ts.get().into());
@@ -216,6 +220,14 @@ where
                             let event_id = content.relates_to.event_id.to_string();
 
                             // Only track reactions on user's messages
+                            // NOTE: This approach has a known limitation: if a reaction event
+                            // is encountered before its corresponding message event (in cached
+                            // events or pagination batches), the reaction will be skipped because
+                            // the message ID is not yet in user_message_ids. Since pagination
+                            // proceeds backward from recent to older events, reactions are
+                            // typically processed before their messages, so most reactions may
+                            // be skipped. A two-pass approach or forward-first traversal would
+                            // be needed to fully capture reactions.
                             if stats.user_message_ids.contains_key(&event_id) {
                                 *stats.reactions_by_emoji.entry(emoji).or_insert(0) += 1;
                                 *stats.reactions_by_message.entry(event_id).or_insert(0) += 1;
@@ -262,11 +274,15 @@ where
             let event_id_str = event.event_id().map(|id| id.to_string());
 
             // Skip if already processed (deduplication)
-            if let Some(ref event_id) = event_id_str {
-                if processed_event_ids.contains(event_id) {
+            // For events without IDs, use timestamp as a proxy key (rare in Matrix)
+            let dedup_key = event_id_str
+                .clone()
+                .or_else(|| event.timestamp().map(|ts| format!("ts-{}", ts.get())));
+            if let Some(ref key) = dedup_key {
+                if processed_event_ids.contains(key) {
                     continue;
                 }
-                processed_event_ids.insert(event_id.clone());
+                processed_event_ids.insert(key.clone());
             }
 
             let ts_millis_opt: Option<i64> = event.timestamp().map(|ts| ts.get().into());
