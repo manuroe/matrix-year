@@ -281,7 +281,7 @@ pub fn build_stats(
             } else {
                 None
             },
-            peaks: if peaks.is_some() { peaks } else { None },
+            peaks,
         },
         activity: if messages_sent > 0 {
             Some(Activity {
@@ -436,18 +436,10 @@ fn compute_peaks(
     let peak_hour = by_hour
         .iter()
         .max_by_key(|(_, &count)| count)
-        .map(|(hour, &messages)| {
-            // With current aggregates we cannot reliably determine the exact date
-            // on which this hour had its peak activity. We therefore use the literal
-            // string "unknown" as a sentinel to indicate that the date is not available.
-            // This is not a real date value and should not be parsed as one.
-            let date = "unknown".to_string();
-
-            PeakHour {
-                hour: hour.clone(),
-                messages,
-                date,
-            }
+        .map(|(hour, &messages)| PeakHour {
+            hour: hour.clone(),
+            messages,
+            date: None,
         });
 
     if peak_year.is_none()

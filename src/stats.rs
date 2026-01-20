@@ -132,7 +132,8 @@ pub struct PeakDay {
 pub struct PeakHour {
     pub hour: String,
     pub messages: i32,
-    pub date: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

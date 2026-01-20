@@ -118,16 +118,14 @@ where
     for event in cached_events.iter() {
         let event_id_str = event.event_id().map(|id| id.to_string());
 
-        // Skip if already processed (deduplication)
-        // For events without IDs, use timestamp as a proxy key (rare in Matrix)
-        let dedup_key = event_id_str
-            .clone()
-            .or_else(|| event.timestamp().map(|ts| format!("ts-{}", ts.get())));
-        if let Some(ref key) = dedup_key {
-            if processed_event_ids.contains(key) {
+        // Skip if already processed (deduplication by stable event ID only)
+        // Events without IDs are rare in Matrix and may be double-counted, but deduplicating
+        // by timestamp alone is unreliable as multiple events can share the same timestamp.
+        if let Some(ref event_id) = event_id_str {
+            if processed_event_ids.contains(event_id) {
                 continue;
             }
-            processed_event_ids.insert(key.clone());
+            processed_event_ids.insert(event_id.clone());
         }
 
         let ts_millis_opt: Option<i64> = event.timestamp().map(|ts| ts.get().into());
@@ -137,11 +135,11 @@ where
         };
 
         // Track oldest/newest events for metadata (regardless of window)
-        if stats.oldest_ts.is_none_or(|old_ts| ts_millis < old_ts) {
+        if stats.oldest_ts.map_or(true, |old_ts| ts_millis < old_ts) {
             stats.oldest_ts = Some(ts_millis);
             stats.oldest_event_id = event_id_str.clone();
         }
-        if stats.newest_ts.is_none_or(|new_ts| ts_millis > new_ts) {
+        if stats.newest_ts.map_or(true, |new_ts| ts_millis > new_ts) {
             stats.newest_ts = Some(ts_millis);
             stats.newest_event_id = event_id_str.clone();
         }
@@ -273,16 +271,14 @@ where
         for event in outcome.events.iter() {
             let event_id_str = event.event_id().map(|id| id.to_string());
 
-            // Skip if already processed (deduplication)
-            // For events without IDs, use timestamp as a proxy key (rare in Matrix)
-            let dedup_key = event_id_str
-                .clone()
-                .or_else(|| event.timestamp().map(|ts| format!("ts-{}", ts.get())));
-            if let Some(ref key) = dedup_key {
-                if processed_event_ids.contains(key) {
+            // Skip if already processed (deduplication by stable event ID only)
+            // Events without IDs are rare in Matrix and may be double-counted, but deduplicating
+            // by timestamp alone is unreliable as multiple events can share the same timestamp.
+            if let Some(ref event_id) = event_id_str {
+                if processed_event_ids.contains(event_id) {
                     continue;
                 }
-                processed_event_ids.insert(key.clone());
+                processed_event_ids.insert(event_id.clone());
             }
 
             let ts_millis_opt: Option<i64> = event.timestamp().map(|ts| ts.get().into());
@@ -293,11 +289,11 @@ where
             };
 
             // Track oldest/newest events for metadata (regardless of window)
-            if stats.oldest_ts.is_none_or(|old_ts| ts_millis < old_ts) {
+            if stats.oldest_ts.map_or(true, |old_ts| ts_millis < old_ts) {
                 stats.oldest_ts = Some(ts_millis);
                 stats.oldest_event_id = event_id_str.clone();
             }
-            if stats.newest_ts.is_none_or(|new_ts| ts_millis > new_ts) {
+            if stats.newest_ts.map_or(true, |new_ts| ts_millis > new_ts) {
                 stats.newest_ts = Some(ts_millis);
                 stats.newest_event_id = event_id_str.clone();
             }
