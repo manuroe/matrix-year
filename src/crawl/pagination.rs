@@ -117,7 +117,7 @@ where
     // Process all cached events first
     for event in cached_events.iter() {
         let event_id_str = event.event_id().map(|id| id.to_string());
-        
+
         // Skip if already processed (deduplication)
         if let Some(ref event_id) = event_id_str {
             if processed_event_ids.contains(event_id) {
@@ -125,7 +125,7 @@ where
             }
             processed_event_ids.insert(event_id.clone());
         }
-        
+
         let ts_millis_opt: Option<i64> = event.timestamp().map(|ts| ts.get().into());
 
         let Some(ts_millis) = ts_millis_opt else {
@@ -260,7 +260,7 @@ where
 
         for event in outcome.events.iter() {
             let event_id_str = event.event_id().map(|id| id.to_string());
-            
+
             // Skip if already processed (deduplication)
             if let Some(ref event_id) = event_id_str {
                 if processed_event_ids.contains(event_id) {
