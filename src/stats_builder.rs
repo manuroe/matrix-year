@@ -18,6 +18,179 @@ pub struct RoomStatsInput {
     pub stats: DetailedPaginationStats,
 }
 
+// ============================================================================
+// Intermediate Aggregation Structs (private, internal to stats_builder)
+// ============================================================================
+
+/// Aggregated temporal data across all rooms (private).
+struct TemporalAggregates {
+    by_year: HashMap<String, i32>,
+    by_month: HashMap<String, i32>,
+    by_week: HashMap<String, i32>,
+    by_weekday: HashMap<String, i32>,
+    by_day: HashMap<String, i32>,
+    by_hour: HashMap<String, i32>,
+}
+
+impl TemporalAggregates {
+    fn new() -> Self {
+        Self {
+            by_year: HashMap::new(),
+            by_month: HashMap::new(),
+            by_week: HashMap::new(),
+            by_weekday: HashMap::new(),
+            by_day: HashMap::new(),
+            by_hour: HashMap::new(),
+        }
+    }
+
+    fn aggregate_from(&mut self, other: &DetailedPaginationStats) {
+        for (key, count) in &other.by_year {
+            *self.by_year.entry(key.clone()).or_insert(0) += count;
+        }
+        for (key, count) in &other.by_month {
+            *self.by_month.entry(key.clone()).or_insert(0) += count;
+        }
+        for (key, count) in &other.by_week {
+            *self.by_week.entry(key.clone()).or_insert(0) += count;
+        }
+        for (key, count) in &other.by_weekday {
+            *self.by_weekday.entry(key.clone()).or_insert(0) += count;
+        }
+        for (key, count) in &other.by_day {
+            *self.by_day.entry(key.clone()).or_insert(0) += count;
+        }
+        for (key, count) in &other.by_hour {
+            *self.by_hour.entry(key.clone()).or_insert(0) += count;
+        }
+    }
+}
+
+/// Aggregated reaction data across all rooms (private).
+struct ReactionAggregates {
+    by_emoji: HashMap<String, i32>,
+    by_message: HashMap<String, i32>,
+}
+
+impl ReactionAggregates {
+    fn new() -> Self {
+        Self {
+            by_emoji: HashMap::new(),
+            by_message: HashMap::new(),
+        }
+    }
+
+    fn aggregate_from(&mut self, other: &DetailedPaginationStats) {
+        for (emoji, count) in &other.reactions_by_emoji {
+            *self.by_emoji.entry(emoji.clone()).or_insert(0) += count;
+        }
+        for (msg_id, count) in &other.reactions_by_message {
+            *self.by_message.entry(msg_id.clone()).or_insert(0) += count;
+        }
+    }
+}
+
+/// Room type distribution metrics (private).
+struct RoomTypeMetrics {
+    dm_count: i32,
+    public_count: i32,
+    private_count: i32,
+    dm_messages: i32,
+    public_messages: i32,
+    private_messages: i32,
+}
+
+impl RoomTypeMetrics {
+    fn new() -> Self {
+        Self {
+            dm_count: 0,
+            public_count: 0,
+            private_count: 0,
+            dm_messages: 0,
+            public_messages: 0,
+            private_messages: 0,
+        }
+    }
+
+    fn record(&mut self, room_type: RoomType, message_count: i32) {
+        match room_type {
+            RoomType::Dm => {
+                self.dm_count += 1;
+                self.dm_messages += message_count;
+            }
+            RoomType::Public => {
+                self.public_count += 1;
+                self.public_messages += message_count;
+            }
+            RoomType::Private => {
+                self.private_count += 1;
+                self.private_messages += message_count;
+            }
+        }
+    }
+
+    fn total_messages(&self) -> i32 {
+        self.dm_messages + self.public_messages + self.private_messages
+    }
+}
+
+/// Created room metrics (private).
+struct CreatedRoomMetrics {
+    total: i32,
+    dm: i32,
+    public: i32,
+    private: i32,
+}
+
+impl CreatedRoomMetrics {
+    fn new() -> Self {
+        Self {
+            total: 0,
+            dm: 0,
+            public: 0,
+            private: 0,
+        }
+    }
+
+    fn record(&mut self, room_type: RoomType) {
+        self.total += 1;
+        match room_type {
+            RoomType::Dm => self.dm += 1,
+            RoomType::Public => self.public += 1,
+            RoomType::Private => self.private += 1,
+        }
+    }
+}
+
+/// Coverage bounds tracking (private).
+struct CoverageBounds {
+    oldest_ts: Option<i64>,
+    newest_ts: Option<i64>,
+    active_dates: HashMap<String, bool>,
+}
+
+impl CoverageBounds {
+    fn new() -> Self {
+        Self {
+            oldest_ts: None,
+            newest_ts: None,
+            active_dates: HashMap::new(),
+        }
+    }
+
+    fn update_from(&mut self, other: &DetailedPaginationStats) {
+        if let Some(ts) = other.oldest_ts {
+            self.oldest_ts = Some(self.oldest_ts.map_or(ts, |old| old.min(ts)));
+        }
+        if let Some(ts) = other.newest_ts {
+            self.newest_ts = Some(self.newest_ts.map_or(ts, |new| new.max(ts)));
+        }
+        for date in other.active_dates.keys() {
+            self.active_dates.insert(date.clone(), true);
+        }
+    }
+}
+
 /// Builds account-level Stats from room-level detailed statistics.
 ///
 /// Aggregates data from all crawled rooms:
@@ -43,38 +216,16 @@ pub fn build_stats(
     window_scope: &WindowScope,
     total_rooms: usize,
 ) -> Result<Stats> {
-    // Aggregate temporal data across all rooms
-    let mut by_year: HashMap<String, i32> = HashMap::new();
-    let mut by_month: HashMap<String, i32> = HashMap::new();
-    let mut by_week: HashMap<String, i32> = HashMap::new();
-    let mut by_weekday: HashMap<String, i32> = HashMap::new();
-    let mut by_day: HashMap<String, i32> = HashMap::new();
-    let mut by_hour: HashMap<String, i32> = HashMap::new();
+    // Initialize aggregation structures
+    let mut temporal = TemporalAggregates::new();
+    let mut reactions = ReactionAggregates::new();
+    let mut room_types = RoomTypeMetrics::new();
+    let mut created_rooms = CreatedRoomMetrics::new();
+    let mut coverage = CoverageBounds::new();
 
-    // Aggregate reactions
-    let mut all_reactions_by_emoji: HashMap<String, i32> = HashMap::new();
-    let mut all_reactions_by_message: HashMap<String, i32> = HashMap::new();
-
-    // Track room-level metrics
+    // Track room-level metrics for ranking
     let mut room_message_counts: Vec<(String, Option<String>, RoomType, i32)> = Vec::new();
     let mut active_rooms_count = 0;
-    let mut dm_rooms_count = 0;
-    let mut public_rooms_count = 0;
-    let mut private_rooms_count = 0;
-    let mut dm_messages = 0;
-    let mut public_messages = 0;
-    let mut private_messages = 0;
-
-    // Track created rooms
-    let mut created_rooms_total = 0;
-    let mut created_dm_rooms = 0;
-    let mut created_public_rooms = 0;
-    let mut created_private_rooms = 0;
-
-    // Track coverage
-    let mut all_active_dates: HashMap<String, bool> = HashMap::new();
-    let mut overall_oldest_ts: Option<i64> = None;
-    let mut overall_newest_ts: Option<i64> = None;
 
     // Aggregate stats from each room
     for room_input in &room_inputs {
@@ -88,72 +239,22 @@ pub fn build_stats(
 
         active_rooms_count += 1;
 
+        // Aggregate temporal data
+        temporal.aggregate_from(room_stats);
+
+        // Aggregate reactions
+        reactions.aggregate_from(room_stats);
+
         // Track room type distribution
-        match room_input.room_type {
-            RoomType::Dm => {
-                dm_rooms_count += 1;
-                dm_messages += user_messages;
-            }
-            RoomType::Public => {
-                public_rooms_count += 1;
-                public_messages += user_messages;
-            }
-            RoomType::Private => {
-                private_rooms_count += 1;
-                private_messages += user_messages;
-            }
-        }
+        room_types.record(room_input.room_type, user_messages);
 
         // Track room creation
         if room_stats.room_created_by_user {
-            created_rooms_total += 1;
-            match room_input.room_type {
-                RoomType::Dm => created_dm_rooms += 1,
-                RoomType::Public => created_public_rooms += 1,
-                RoomType::Private => created_private_rooms += 1,
-            }
+            created_rooms.record(room_input.room_type);
         }
 
-        // Aggregate temporal data
-        for (key, count) in &room_stats.by_year {
-            *by_year.entry(key.clone()).or_insert(0) += count;
-        }
-        for (key, count) in &room_stats.by_month {
-            *by_month.entry(key.clone()).or_insert(0) += count;
-        }
-        for (key, count) in &room_stats.by_week {
-            *by_week.entry(key.clone()).or_insert(0) += count;
-        }
-        for (key, count) in &room_stats.by_weekday {
-            *by_weekday.entry(key.clone()).or_insert(0) += count;
-        }
-        for (key, count) in &room_stats.by_day {
-            *by_day.entry(key.clone()).or_insert(0) += count;
-        }
-        for (key, count) in &room_stats.by_hour {
-            *by_hour.entry(key.clone()).or_insert(0) += count;
-        }
-
-        // Aggregate reactions
-        for (emoji, count) in &room_stats.reactions_by_emoji {
-            *all_reactions_by_emoji.entry(emoji.clone()).or_insert(0) += count;
-        }
-        for (msg_id, count) in &room_stats.reactions_by_message {
-            *all_reactions_by_message.entry(msg_id.clone()).or_insert(0) += count;
-        }
-
-        // Aggregate active dates
-        for date in room_stats.active_dates.keys() {
-            all_active_dates.insert(date.clone(), true);
-        }
-
-        // Track overall timestamp bounds
-        if let Some(ts) = room_stats.oldest_ts {
-            overall_oldest_ts = Some(overall_oldest_ts.map_or(ts, |old| old.min(ts)));
-        }
-        if let Some(ts) = room_stats.newest_ts {
-            overall_newest_ts = Some(overall_newest_ts.map_or(ts, |new| new.max(ts)));
-        }
+        // Update coverage bounds and active dates
+        coverage.update_from(room_stats);
 
         // Collect room info for ranking
         room_message_counts.push((
@@ -165,83 +266,35 @@ pub fn build_stats(
     }
 
     // Calculate total messages sent
-    let messages_sent = dm_messages + public_messages + private_messages;
+    let messages_sent = room_types.total_messages();
 
     // Compute peaks
-    let peaks = compute_peaks(&by_year, &by_month, &by_week, &by_day, &by_hour)?;
+    let peaks = compute_peaks(
+        &temporal.by_year,
+        &temporal.by_month,
+        &temporal.by_week,
+        &temporal.by_day,
+        &temporal.by_hour,
+    )?;
 
-    // Rank top rooms (limit 5)
-    room_message_counts.sort_by(|a, b| b.3.cmp(&a.3));
-    let top_rooms: Vec<RoomEntry> = room_message_counts
-        .iter()
-        .take(5)
-        .map(|(room_id, room_name, _room_type, count)| {
-            let percentage = if messages_sent > 0 {
-                Some((*count as f64 / messages_sent as f64) * 100.0)
-            } else {
-                None
-            };
+    // Rank top rooms
+    let top_rooms = rank_top_rooms(&mut room_message_counts, messages_sent)?;
 
-            RoomEntry {
-                name: room_name.clone(),
-                messages: *count,
-                percentage,
-                permalink: format!("https://matrix.to/#/{}", room_id),
-            }
-        })
-        .collect();
+    // Rank top emojis
+    let top_emojis = rank_top_emojis(reactions.by_emoji)?;
 
-    // Rank top emojis (limit 5)
-    let mut emoji_vec: Vec<_> = all_reactions_by_emoji.into_iter().collect();
-    emoji_vec.sort_by(|a, b| b.1.cmp(&a.1));
-    let top_emojis: Vec<EmojiEntry> = emoji_vec
-        .into_iter()
-        .take(5)
-        .map(|(emoji, count)| EmojiEntry { emoji, count })
-        .collect();
-
-    // Rank top messages by reaction count (limit 5)
-    let mut message_reaction_vec: Vec<_> = all_reactions_by_message.into_iter().collect();
-    message_reaction_vec.sort_by(|a, b| b.1.cmp(&a.1));
-    let top_messages: Vec<MessageReactionEntry> = message_reaction_vec
-        .into_iter()
-        .take(5)
-        .map(|(event_id, count)| MessageReactionEntry {
-            permalink: format!("https://matrix.to/#/{}", event_id),
-            reaction_count: count,
-        })
-        .collect();
+    // Rank top messages
+    let top_messages = rank_top_messages(reactions.by_message)?;
 
     // Calculate total reactions
     let total_reactions: i32 = top_emojis.iter().map(|e| e.count).sum();
 
-    // Build coverage
-    let (coverage_from, coverage_to) =
-        if let (Some(oldest), Some(newest)) = (overall_oldest_ts, overall_newest_ts) {
-            use chrono::{Local, TimeZone};
-            let from_dt = Local.timestamp_millis_opt(oldest).single();
-            let to_dt = Local.timestamp_millis_opt(newest).single();
+    // Build coverage information
+    let (coverage_from, coverage_to, days_active) =
+        compute_coverage_bounds(&coverage, window_scope)?;
 
-            (
-                from_dt
-                    .map(|dt| dt.format("%Y-%m-%d").to_string())
-                    .unwrap_or_else(|| window_scope.from.format("%Y-%m-%d").to_string()),
-                to_dt
-                    .map(|dt| dt.format("%Y-%m-%d").to_string())
-                    .unwrap_or_else(|| window_scope.to.format("%Y-%m-%d").to_string()),
-            )
-        } else {
-            (
-                window_scope.from.format("%Y-%m-%d").to_string(),
-                window_scope.to.format("%Y-%m-%d").to_string(),
-            )
-        };
-
-    let days_active = if !all_active_dates.is_empty() {
-        Some(all_active_dates.len() as i32)
-    } else {
-        None
-    };
+    // Build activity section early to consume temporal struct
+    let activity = build_activity_section(temporal, messages_sent)?;
 
     // Build Stats struct
     let stats = Stats {
@@ -266,131 +319,259 @@ pub fn build_stats(
         summary: Summary {
             messages_sent,
             active_rooms: active_rooms_count,
-            dm_rooms: if dm_rooms_count > 0 {
-                Some(dm_rooms_count)
+            dm_rooms: if room_types.dm_count > 0 {
+                Some(room_types.dm_count)
             } else {
                 None
             },
-            public_rooms: if public_rooms_count > 0 {
-                Some(public_rooms_count)
+            public_rooms: if room_types.public_count > 0 {
+                Some(room_types.public_count)
             } else {
                 None
             },
-            private_rooms: if private_rooms_count > 0 {
-                Some(private_rooms_count)
+            private_rooms: if room_types.private_count > 0 {
+                Some(room_types.private_count)
             } else {
                 None
             },
             peaks,
         },
-        activity: if messages_sent > 0 {
-            Some(Activity {
-                by_year: if !by_year.is_empty() {
-                    Some(by_year)
-                } else {
-                    None
-                },
-                by_month: if !by_month.is_empty() {
-                    Some(by_month)
-                } else {
-                    None
-                },
-                by_week: if !by_week.is_empty() {
-                    Some(by_week)
-                } else {
-                    None
-                },
-                by_weekday: if !by_weekday.is_empty() {
-                    Some(by_weekday)
-                } else {
-                    None
-                },
-                by_day: if !by_day.is_empty() {
-                    Some(by_day)
-                } else {
-                    None
-                },
-                by_hour: if !by_hour.is_empty() {
-                    Some(by_hour)
-                } else {
-                    None
-                },
-            })
-        } else {
-            None
-        },
-        rooms: if active_rooms_count > 0 {
-            Some(Rooms {
-                total: active_rooms_count,
-                top: if !top_rooms.is_empty() {
-                    Some(top_rooms)
-                } else {
-                    None
-                },
-                messages_by_room_type: Some(MessagesByRoomType {
-                    dm: if dm_messages > 0 {
-                        Some(dm_messages)
-                    } else {
-                        None
-                    },
-                    public: if public_messages > 0 {
-                        Some(public_messages)
-                    } else {
-                        None
-                    },
-                    private: if private_messages > 0 {
-                        Some(private_messages)
-                    } else {
-                        None
-                    },
-                }),
-            })
-        } else {
-            None
-        },
-        reactions: if total_reactions > 0 {
-            Some(Reactions {
-                total: Some(total_reactions),
-                top_emojis: if !top_emojis.is_empty() {
-                    Some(top_emojis)
-                } else {
-                    None
-                },
-                top_messages: if !top_messages.is_empty() {
-                    Some(top_messages)
-                } else {
-                    None
-                },
-            })
-        } else {
-            None
-        },
-        created_rooms: if created_rooms_total > 0 {
-            Some(CreatedRooms {
-                total: created_rooms_total,
-                dm_rooms: if created_dm_rooms > 0 {
-                    Some(created_dm_rooms)
-                } else {
-                    None
-                },
-                public_rooms: if created_public_rooms > 0 {
-                    Some(created_public_rooms)
-                } else {
-                    None
-                },
-                private_rooms: if created_private_rooms > 0 {
-                    Some(created_private_rooms)
-                } else {
-                    None
-                },
-            })
-        } else {
-            None
-        },
+        activity,
+        rooms: build_rooms_section(top_rooms, &room_types, active_rooms_count)?,
+        reactions: build_reactions_section(top_emojis, top_messages, total_reactions)?,
+        created_rooms: build_created_rooms_section(&created_rooms)?,
         fun: None, // TODO: Implement fun stats later
     };
 
     Ok(stats)
+}
+
+// ============================================================================
+// Helper Functions for Building Sections
+// ============================================================================
+
+/// Builds the Activity section of stats from temporal aggregates (private).
+fn build_activity_section(
+    temporal: TemporalAggregates,
+    messages_sent: i32,
+) -> Result<Option<Activity>> {
+    if messages_sent == 0 {
+        return Ok(None);
+    }
+
+    Ok(Some(Activity {
+        by_year: if !temporal.by_year.is_empty() {
+            Some(temporal.by_year)
+        } else {
+            None
+        },
+        by_month: if !temporal.by_month.is_empty() {
+            Some(temporal.by_month)
+        } else {
+            None
+        },
+        by_week: if !temporal.by_week.is_empty() {
+            Some(temporal.by_week)
+        } else {
+            None
+        },
+        by_weekday: if !temporal.by_weekday.is_empty() {
+            Some(temporal.by_weekday)
+        } else {
+            None
+        },
+        by_day: if !temporal.by_day.is_empty() {
+            Some(temporal.by_day)
+        } else {
+            None
+        },
+        by_hour: if !temporal.by_hour.is_empty() {
+            Some(temporal.by_hour)
+        } else {
+            None
+        },
+    }))
+}
+
+/// Builds the Rooms section of stats (private).
+fn build_rooms_section(
+    top_rooms: Vec<RoomEntry>,
+    room_types: &RoomTypeMetrics,
+    active_rooms_count: i32,
+) -> Result<Option<Rooms>> {
+    if active_rooms_count == 0 {
+        return Ok(None);
+    }
+
+    Ok(Some(Rooms {
+        total: active_rooms_count,
+        top: if !top_rooms.is_empty() {
+            Some(top_rooms)
+        } else {
+            None
+        },
+        messages_by_room_type: Some(MessagesByRoomType {
+            dm: if room_types.dm_messages > 0 {
+                Some(room_types.dm_messages)
+            } else {
+                None
+            },
+            public: if room_types.public_messages > 0 {
+                Some(room_types.public_messages)
+            } else {
+                None
+            },
+            private: if room_types.private_messages > 0 {
+                Some(room_types.private_messages)
+            } else {
+                None
+            },
+        }),
+    }))
+}
+
+/// Builds the Reactions section of stats (private).
+fn build_reactions_section(
+    top_emojis: Vec<EmojiEntry>,
+    top_messages: Vec<MessageReactionEntry>,
+    total_reactions: i32,
+) -> Result<Option<Reactions>> {
+    if total_reactions == 0 {
+        return Ok(None);
+    }
+
+    Ok(Some(Reactions {
+        total: Some(total_reactions),
+        top_emojis: if !top_emojis.is_empty() {
+            Some(top_emojis)
+        } else {
+            None
+        },
+        top_messages: if !top_messages.is_empty() {
+            Some(top_messages)
+        } else {
+            None
+        },
+    }))
+}
+
+/// Builds the CreatedRooms section of stats (private).
+fn build_created_rooms_section(created_rooms: &CreatedRoomMetrics) -> Result<Option<CreatedRooms>> {
+    if created_rooms.total == 0 {
+        return Ok(None);
+    }
+
+    Ok(Some(CreatedRooms {
+        total: created_rooms.total,
+        dm_rooms: if created_rooms.dm > 0 {
+            Some(created_rooms.dm)
+        } else {
+            None
+        },
+        public_rooms: if created_rooms.public > 0 {
+            Some(created_rooms.public)
+        } else {
+            None
+        },
+        private_rooms: if created_rooms.private > 0 {
+            Some(created_rooms.private)
+        } else {
+            None
+        },
+    }))
+}
+
+// ============================================================================
+// Helper Functions for Ranking
+// ============================================================================
+
+/// Ranks top rooms by message count (private).
+fn rank_top_rooms(
+    room_message_counts: &mut [(String, Option<String>, RoomType, i32)],
+    messages_sent: i32,
+) -> Result<Vec<RoomEntry>> {
+    room_message_counts.sort_by(|a, b| b.3.cmp(&a.3));
+
+    Ok(room_message_counts
+        .iter()
+        .take(5)
+        .map(|(room_id, room_name, _room_type, count)| {
+            let percentage = if messages_sent > 0 {
+                Some((*count as f64 / messages_sent as f64) * 100.0)
+            } else {
+                None
+            };
+
+            RoomEntry {
+                name: room_name.clone(),
+                messages: *count,
+                percentage,
+                permalink: format!("https://matrix.to/#/{}", room_id),
+            }
+        })
+        .collect())
+}
+
+/// Ranks top emojis by reaction count (private).
+fn rank_top_emojis(emojis: HashMap<String, i32>) -> Result<Vec<EmojiEntry>> {
+    let mut emoji_vec: Vec<_> = emojis.into_iter().collect();
+    emoji_vec.sort_by(|a, b| b.1.cmp(&a.1));
+
+    Ok(emoji_vec
+        .into_iter()
+        .take(5)
+        .map(|(emoji, count)| EmojiEntry { emoji, count })
+        .collect())
+}
+
+/// Ranks top messages by reaction count (private).
+fn rank_top_messages(messages: HashMap<String, i32>) -> Result<Vec<MessageReactionEntry>> {
+    let mut message_vec: Vec<_> = messages.into_iter().collect();
+    message_vec.sort_by(|a, b| b.1.cmp(&a.1));
+
+    Ok(message_vec
+        .into_iter()
+        .take(5)
+        .map(|(event_id, count)| MessageReactionEntry {
+            permalink: format!("https://matrix.to/#/{}", event_id),
+            reaction_count: count,
+        })
+        .collect())
+}
+
+/// Computes coverage bounds from timestamps and window scope (private).
+fn compute_coverage_bounds(
+    coverage: &CoverageBounds,
+    window_scope: &WindowScope,
+) -> Result<(String, String, Option<i32>)> {
+    let (coverage_from, coverage_to) =
+        if let (Some(oldest), Some(newest)) = (coverage.oldest_ts, coverage.newest_ts) {
+            use chrono::{Local, TimeZone};
+            let from_dt = Local.timestamp_millis_opt(oldest).single();
+            let to_dt = Local.timestamp_millis_opt(newest).single();
+
+            (
+                from_dt
+                    .map(|dt| dt.format("%Y-%m-%d").to_string())
+                    .unwrap_or_else(|| window_scope.from.format("%Y-%m-%d").to_string()),
+                to_dt
+                    .map(|dt| dt.format("%Y-%m-%d").to_string())
+                    .unwrap_or_else(|| window_scope.to.format("%Y-%m-%d").to_string()),
+            )
+        } else {
+            (
+                window_scope.from.format("%Y-%m-%d").to_string(),
+                window_scope.to.format("%Y-%m-%d").to_string(),
+            )
+        };
+
+    let days_active = if !coverage.active_dates.is_empty() {
+        Some(coverage.active_dates.len() as i32)
+    } else {
+        None
+    };
+
+    Ok((coverage_from, coverage_to, days_active))
 }
 
 /// Computes peak activity periods from temporal buckets.
