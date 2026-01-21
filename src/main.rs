@@ -317,8 +317,7 @@ fn handle_window(
         account_dir
     ))?;
 
-    let stats_json =
-        serde_json::to_string_pretty(&stats).context("Failed to serialize stats")?;
+    let stats_json = serde_json::to_string_pretty(&stats).context("Failed to serialize stats")?;
     std::fs::write(&stats_path, stats_json)
         .context(format!("Failed to write stats file: {:?}", stats_path))?;
 
