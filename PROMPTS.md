@@ -256,3 +256,14 @@ By default, no account is selected but the selector remembers the last choice. T
 > I am fine if it reprocesses all the data everytime on the same crawl window as I am not sure how we could cache some stats on new DB. Each type of `Stats` scope compute the data differently.
 
 - Later prompts: Lost context after this prompt.
+
+## PR: Refactor stats_builder to improve code digestibility
+
+> can you refactor this huge method to make it more easy to digest?
+
+> is there a way to share and reuse structs between `stats.rs` and `stats_builder.rs`?
+> As the end, we want to fill the data defined in `stats.rs`
+
+> Start implementation with the recommanded soltuions for Further Considerations
+
+> PR it

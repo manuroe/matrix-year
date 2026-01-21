@@ -175,14 +175,7 @@ The SDK:
 - Handles end-to-end encryption automatically
 - Manages sync state and event persistence
 
-**Credentials storage** (access tokens, refresh tokens, database encryption keys) is managed via the `AccountSecretsStore` abstraction in `src/secrets.rs`. 
-
-Current implementation:
-- Stores credentials in local JSON files at `accounts/{account}/meta/credentials.json`
-- File permissions restricted to owner-only (0600 on Unix)
-- Storage mechanism is completely encapsulated in `secrets.rs`
-
-The abstraction allows switching storage backends (keychain, encrypted files, etc.) without changing other modules.
+**Credentials storage** is managed via the `AccountSecretsStore` abstraction in `src/secrets.rs`. The abstraction allows switching storage backends without changing other modules — access credentials only through the public API.
 
 ---
 
@@ -450,6 +443,16 @@ Agents and contributors **must not** introduce:
 
 ## 10. For Code-Generation Agents
 
+### Documentation Scope
+
+**AGENTS.md documents constraints, architecture principles, and extension points — not implementation details.**
+
+When updating AGENTS.md:
+- Document **what must be true** (rules, constraints, contracts)
+- Document **where decisions matter** (extension points, critical paths)
+- **Do not** document how functions work, struct fields, or method implementations — read the code when needed
+- Keep it high-level and stable; avoid re-documenting what's already clear from the code
+
 ### Language & stack constraints
 
 This project is implemented in **Rust**.
@@ -466,19 +469,18 @@ Agents **must respect**:
 
 - Account isolation (no cross-account reads)
 - Account selection via `AccountSelector` module (provides unified account discovery, interactive selection UI, and preference storage)
-- Database abstraction via `CrawlDb` struct (do not access SQLite directly)
+- Database abstraction (do not access SQLite directly; use `CrawlDb`)
+- Credential storage abstraction (access via `AccountSecretsStore` API only)
 - Incremental crawling via sync tokens
-- Session persistence via SDK sessions (access + refresh tokens)
-- Credential storage abstraction via `AccountSecretsStore`
-- Cross-signing verification flow during login (SAS emoji or recovery key)
+- Session persistence via SDK sessions
 
 Agents **must not**:
 
 - Store secrets in the database
 - Use global mutable state
 - Block the async runtime
-- Access credential storage directly; use `AccountSecretsStore` API only
-- Store recovery keys or passphrases (they are transient, used only during session cross-signing)
+- Access credential storage directly
+- Store recovery keys or passphrases (they are transient, used only during login)
 
 When unsure, prefer:
 
@@ -493,9 +495,11 @@ When unsure, prefer:
 - Prefer borrowing over cloning; use `&Path`/`&PathBuf` instead of `String` for filesystem inputs.
 - Keep CLI help and runtime behavior in sync; rely on `clap`-generated help where possible to avoid drift.
 - Run `cargo fmt` and `cargo clippy --all-targets --all-features -D warnings` before merging.
-- Handle authentication errors with context; ensure session restore paths use `restore_session` with `SessionMeta` and `SessionTokens`.
 - Add focused tests when touching stats schema, rendering logic, or CLI parsing; keep example outputs up to date when behavior changes.
 - Do not use `clippy::type_complexity` suppressions; instead refactor using structs or type aliases to simplify the type signature itself.
+- Use `unicode-width` crate for proper display width calculations when aligning text with Unicode content (emoji, CJK characters, zero-width joiners). Character count (`.chars().count()`) differs from display width (columns) for many Unicode strings.
+- Prefer maintained crates; avoid deprecated ones (e.g., use `is-terminal` over `atty`).
+- Keep shared utilities (timestamp formatting, etc.) de-duplicated to avoid drift across modules.
 
 ### Integration Tests
 
