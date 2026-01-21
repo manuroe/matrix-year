@@ -40,7 +40,9 @@ Time Windows:
 
 Examples:
     my login
-    my 2025                          # Crawl + render year 2025    my 2025 --output reports         # With custom output directory    my crawl 2025-03 --user-id @me:example.org
+    my 2025                          # Crawl + render year 2025
+    my 2025 --output reports         # With custom output directory
+    my crawl 2025-03 --user-id @me:example.org
     my render --stats examples/example-stats.json
 
 More help:
@@ -54,7 +56,7 @@ Usage:
 
 Options:
     --stats <path>       Path to stats JSON file (required)
-    --formats <list>     Comma-separated formats (md,html). Default: all formats
+    --formats <list>     Comma-separated formats (md,html). Default: md
     --output <dir>       Output directory (default: current directory)
 
 Examples:
@@ -282,45 +284,52 @@ fn handle_window(
 
     // Step 1: Select single account
     let mut selector = account_selector::AccountSelector::new()?;
-    let accounts = selector.select_accounts(user_id_flag.clone(), false)?;
+    let accounts = selector.select_accounts(user_id_flag.as_ref().cloned(), false)?;
 
-    if accounts.len() != 1 {
-        anyhow::bail!("Expected exactly one account for window command");
+    if accounts.is_empty() {
+        anyhow::bail!("No accounts found. Use 'my login' first.");
+    } else if accounts.len() > 1 {
+        anyhow::bail!(
+            "Multiple accounts found. Window command requires exactly one account. Use --user-id to specify which account."
+        );
     }
 
     let (account_id, account_dir) = &accounts[0];
     eprintln!("📱 Account: {}", account_id);
 
-    // Step 2: Crawl the window
+    // Step 2: Crawl the window (pass the selected account_id to avoid double selection)
     eprintln!("\n🔄 Crawling {}...", window);
     let account_stats = tokio::runtime::Runtime::new()
         .context("Failed to create Tokio runtime")?
         .block_on(crawl::run(window.clone(), user_id_flag))?;
 
-    // Write stats for the account
-    for (acc_id, stats) in account_stats {
-        let stats_filename = format!("stats-{}.json", stats.scope.key);
-        let stats_path = account_dir.join(stats_filename);
+    // Write stats for the account (we expect exactly one entry)
+    let (acc_id, stats) = account_stats
+        .into_iter()
+        .next()
+        .context("Expected exactly one account's stats from crawl::run")?;
 
-        std::fs::create_dir_all(account_dir).context(format!(
-            "Failed to create account directory: {:?}",
-            account_dir
-        ))?;
+    let stats_filename = format!("stats-{}.json", stats.scope.key);
+    let stats_path = account_dir.join(stats_filename);
 
-        let stats_json =
-            serde_json::to_string_pretty(&stats).context("Failed to serialize stats")?;
-        std::fs::write(&stats_path, stats_json)
-            .context(format!("Failed to write stats file: {:?}", stats_path))?;
+    std::fs::create_dir_all(account_dir).context(format!(
+        "Failed to create account directory: {:?}",
+        account_dir
+    ))?;
 
-        eprintln!("📊 Stats saved: {}", stats_path.display());
+    let stats_json =
+        serde_json::to_string_pretty(&stats).context("Failed to serialize stats")?;
+    std::fs::write(&stats_path, stats_json)
+        .context(format!("Failed to write stats file: {:?}", stats_path))?;
 
-        // Step 3: Render with provided formats and output directory
-        eprintln!("\n📝 Rendering reports...");
-        let output_dir = output.clone().unwrap_or_else(|| PathBuf::from("."));
-        render_stats(&stats, &output_dir, &formats)?;
+    eprintln!("📊 Stats saved: {}", stats_path.display());
 
-        eprintln!("\n✅ Done! Window {} processed for {}", window, acc_id);
-    }
+    // Step 3: Render with provided formats and output directory
+    eprintln!("\n📝 Rendering reports...");
+    let output_dir = output.unwrap_or_else(|| PathBuf::from("."));
+    render_stats(&stats, &output_dir, &formats)?;
+
+    eprintln!("\n✅ Done! Window {} processed for {}", window, acc_id);
 
     Ok(())
 }
@@ -350,7 +359,7 @@ fn render_stats(stats: &stats::Stats, output_dir: &Path, formats_arg: &str) -> R
 
     // Parse formats
     let formats: Vec<&str> = if formats_arg.is_empty() {
-        // Empty string means render all
+        // Empty string defaults to md format
         vec!["md"]
     } else {
         formats_arg.split(',').map(|s| s.trim()).collect()

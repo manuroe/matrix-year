@@ -280,7 +280,7 @@ By default, no account is selected but the selector remembers the last choice. T
 
 > Start implementation
 
-> Simplify `my stats` even more. Remove the `window` and `--user-id` parameter. The input is only the `stats` file where those data can be extracted
+> Simplify `my render` even more. Remove the `window` and `--user-id` parameter. The input is only the `stats` file where those data can be extracted
 
 > add the same `--output` and `--formats` parameters as `my render`
 
