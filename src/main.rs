@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 mod account_selector;
 mod crawl;
@@ -23,50 +23,54 @@ const HELP_MAIN: &str = "\
 my — Matrix recap tool (year, month, week, day, life)
 
 Commands:
-    --render [formats]   Render reports (md,html).
+    login               Log into a Matrix account
+    logout              Log out from a Matrix account
+    status              Show account and credential status
+    crawl <window>      Crawl Matrix data for a time window
+    reset               Reset crawl metadata and SDK data
+    render              Render reports from stats files
+    <window>            Crawl and render for a time window (shorthand)
 
-Usage:
-    my --render [formats] --json-stats <path> [--output <dir>]
+Time Windows:
+    2025                Year
+    2025-03             Month
+    2025-W12            Week
+    2025-03-15          Day
+    life                Entire history
+
+Examples:
+    my login
+    my 2025                          # Crawl + render year 2025    my 2025 --output reports         # With custom output directory    my crawl 2025-03 --user-id @me:example.org
+    my render --stats examples/example-stats.json
 
 More help:
     my --help render";
 
 const HELP_RENDER: &str = "\
-Render reports (md,html)
+Render reports from stats files
 
 Usage:
-    my --render [formats] --json-stats <path> [--output <dir>]
+    my render --stats <path> [--formats <list>] [--output <dir>]
 
 Options:
-    --render [formats]   Comma-separated formats (md,html). Empty renders all.
-    --json-stats <path>  Optional stats JSON (required for now; DB later). Must include scope: year, month, week, day, or life.
-    --output <dir>       Output directory (default: current dir). Filenames are auto-generated based on scope.
+    --stats <path>       Path to stats JSON file (required)
+    --formats <list>     Comma-separated formats (md,html). Default: all formats
+    --output <dir>       Output directory (default: current directory)
 
 Examples:
-  my --render md --json-stats examples/example-stats.json --output examples
-  my --render md,html --json-stats examples/example-stats.json --output reports";
+    my render --stats examples/example-stats.json
+    my render --stats examples/example-stats.json --formats md
+    my render --stats stats.json --output reports";
 
 #[derive(Parser)]
 #[command(name = "my", disable_help_flag = true)]
 #[command(about = "Matrix year-in-review tool", long_about = None)]
 struct Cli {
-    /// Render formats (comma-separated: md,html). Renders all if no formats specified.
-    #[arg(long)]
-    render: Option<String>,
-
-    /// Path to JSON stats file (optional, for development; will use DB later)
-    #[arg(long)]
-    json_stats: Option<PathBuf>,
-
-    /// Output directory (defaults to current directory)
-    #[arg(short, long)]
-    output: Option<PathBuf>,
-
     /// Show help (global or per topic). Example: my --help render
     #[arg(long, value_name = "TOPIC", num_args = 0..=1, default_missing_value = "")]
     help: Option<String>,
 
-    /// Optional subcommand (e.g., login)
+    /// Subcommand or time window (e.g., login, crawl, 2025)
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -108,6 +112,21 @@ enum Commands {
         #[arg(long)]
         user_id: Option<String>,
     },
+    /// Render reports from stats files (md, html)
+    Render {
+        /// Path to JSON stats file
+        #[arg(long)]
+        stats: PathBuf,
+        /// Comma-separated formats (md,html). Empty renders all.
+        #[arg(long, default_value = "")]
+        formats: String,
+        /// Output directory (defaults to current directory)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// Crawl and render for a time window (shorthand: my 2025)
+    #[command(external_subcommand)]
+    Window(Vec<String>),
 }
 
 fn main() -> Result<()> {
@@ -188,56 +207,172 @@ fn main() -> Result<()> {
                     .block_on(reset::run(user_id))?;
                 return Ok(());
             }
-        }
-    }
-
-    if let Some(render_arg) = cli.render {
-        // Load stats
-        let stats = if let Some(json_path) = cli.json_stats {
-            stats::Stats::load_from_file(&json_path)?
-        } else {
-            anyhow::bail!("--json-stats is currently required (DB support coming later)");
-        };
-
-        // Determine output directory
-        let output_dir = cli.output.unwrap_or_else(|| PathBuf::from("."));
-        std::fs::create_dir_all(&output_dir).with_context(|| {
-            format!(
-                "Failed to create output directory: {}",
-                output_dir.display()
-            )
-        })?;
-
-        // Parse formats
-        let formats: Vec<&str> = if render_arg.is_empty() {
-            // Empty string means render all
-            vec!["md"]
-        } else {
-            render_arg.split(',').map(|s| s.trim()).collect()
-        };
-
-        // Render each format
-        for format in formats {
-            match format {
-                "md" => {
-                    let markdown = renderer::md::render(&stats)?;
-                    let filename = default_md_filename(&stats);
-                    let output_path = output_dir.join(filename);
-                    std::fs::write(&output_path, markdown)?;
-                    eprintln!("Markdown report written to: {}", output_path.display());
+            Commands::Render {
+                stats,
+                formats,
+                output,
+            } => {
+                // Render command: load stats and generate reports
+                handle_render(stats, formats, output)?;
+                return Ok(());
+            }
+            Commands::Window(args) => {
+                // Window command: crawl + render for a time window
+                if args.is_empty() {
+                    anyhow::bail!("Window pattern required (e.g., my 2025)");
                 }
-                _ => {
-                    eprintln!("Warning: Unknown format '{}', skipping", format);
+
+                // Parse window and flags from args
+                let window = args[0].clone();
+                let mut user_id = None;
+                let mut formats = String::new();
+                let mut output = None;
+
+                let mut i = 1;
+                while i < args.len() {
+                    match args[i].as_str() {
+                        "--user-id" => {
+                            if i + 1 < args.len() {
+                                user_id = Some(args[i + 1].clone());
+                                i += 2;
+                            } else {
+                                anyhow::bail!("--user-id requires a value");
+                            }
+                        }
+                        "--formats" => {
+                            if i + 1 < args.len() {
+                                formats = args[i + 1].clone();
+                                i += 2;
+                            } else {
+                                anyhow::bail!("--formats requires a value");
+                            }
+                        }
+                        "-o" | "--output" => {
+                            if i + 1 < args.len() {
+                                output = Some(PathBuf::from(&args[i + 1]));
+                                i += 2;
+                            } else {
+                                anyhow::bail!("-o/--output requires a value");
+                            }
+                        }
+                        _ => {
+                            anyhow::bail!("Unknown flag: {}", args[i]);
+                        }
+                    }
                 }
+
+                handle_window(window, user_id, formats, output)?;
+                return Ok(());
             }
         }
-
-        Ok(())
-    } else {
-        eprintln!("No action specified. Use --render to generate reports.");
-        eprintln!("Example: my --render md --json-stats stats.json");
-        Ok(())
     }
+
+    eprintln!("No action specified. Try 'my --help' for usage.");
+    Ok(())
+}
+
+/// Handle the window command: crawl + render for a single account
+fn handle_window(
+    window: String,
+    user_id_flag: Option<String>,
+    formats: String,
+    output: Option<PathBuf>,
+) -> Result<()> {
+    eprintln!("🔍 Window: {}", window);
+
+    // Step 1: Select single account
+    let mut selector = account_selector::AccountSelector::new()?;
+    let accounts = selector.select_accounts(user_id_flag.clone(), false)?;
+
+    if accounts.len() != 1 {
+        anyhow::bail!("Expected exactly one account for window command");
+    }
+
+    let (account_id, account_dir) = &accounts[0];
+    eprintln!("📱 Account: {}", account_id);
+
+    // Step 2: Crawl the window
+    eprintln!("\n🔄 Crawling {}...", window);
+    let account_stats = tokio::runtime::Runtime::new()
+        .context("Failed to create Tokio runtime")?
+        .block_on(crawl::run(window.clone(), user_id_flag))?;
+
+    // Write stats for the account
+    for (acc_id, stats) in account_stats {
+        let stats_filename = format!("stats-{}.json", stats.scope.key);
+        let stats_path = account_dir.join(stats_filename);
+
+        std::fs::create_dir_all(account_dir).context(format!(
+            "Failed to create account directory: {:?}",
+            account_dir
+        ))?;
+
+        let stats_json =
+            serde_json::to_string_pretty(&stats).context("Failed to serialize stats")?;
+        std::fs::write(&stats_path, stats_json)
+            .context(format!("Failed to write stats file: {:?}", stats_path))?;
+
+        eprintln!("📊 Stats saved: {}", stats_path.display());
+
+        // Step 3: Render with provided formats and output directory
+        eprintln!("\n📝 Rendering reports...");
+        let output_dir = output.clone().unwrap_or_else(|| PathBuf::from("."));
+        render_stats(&stats, &output_dir, &formats)?;
+
+        eprintln!("\n✅ Done! Window {} processed for {}", window, acc_id);
+    }
+
+    Ok(())
+}
+
+/// Handle the render command
+fn handle_render(stats_path: PathBuf, formats: String, output: Option<PathBuf>) -> Result<()> {
+    // Load stats from provided path
+    let stats = stats::Stats::load_from_file(&stats_path)?;
+
+    // Determine output directory
+    let output_dir = output.unwrap_or_else(|| PathBuf::from("."));
+
+    // Render stats
+    render_stats(&stats, &output_dir, &formats)?;
+
+    Ok(())
+}
+
+/// Render stats to the specified directory in the given formats
+fn render_stats(stats: &stats::Stats, output_dir: &Path, formats_arg: &str) -> Result<()> {
+    std::fs::create_dir_all(output_dir).with_context(|| {
+        format!(
+            "Failed to create output directory: {}",
+            output_dir.display()
+        )
+    })?;
+
+    // Parse formats
+    let formats: Vec<&str> = if formats_arg.is_empty() {
+        // Empty string means render all
+        vec!["md"]
+    } else {
+        formats_arg.split(',').map(|s| s.trim()).collect()
+    };
+
+    // Render each format
+    for format in formats {
+        match format {
+            "md" => {
+                let markdown = renderer::md::render(stats)?;
+                let filename = default_md_filename(stats);
+                let output_path = output_dir.join(filename);
+                std::fs::write(&output_path, markdown)?;
+                eprintln!("📄 Markdown: {}", output_path.display());
+            }
+            _ => {
+                eprintln!("⚠️  Warning: Unknown format '{}', skipping", format);
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn default_md_filename(stats: &stats::Stats) -> String {

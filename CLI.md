@@ -33,6 +33,63 @@ my login --user-id @alice:example.org
 my logout @alice:example.org
 ```
 
+### Window Command (Shorthand)
+
+Crawl and render a time window for a single account in one command. This is a convenient shorthand for running `my crawl <window>` followed by `my render --stats <stats_file>`.
+
+**Usage:**
+```bash
+my <window> [--user-id <@alice:example.org>] [--formats <list>] [--output <dir>]
+```
+
+**Arguments:**
+- `<window>` — Temporal scope (e.g., `2025`, `2025-03`, `2025-W12`, `2025-03-15`, `life`).
+
+**Options:**
+- `--user-id <@alice:example.org>` — (Optional) Target a specific account. If omitted, prompts for selection.
+- `--formats <list>` — Comma-separated list of formats (e.g., `md`, `md,html`). Defaults to all available formats.
+- `--output <dir>` — Output directory for generated reports. Defaults to current directory.
+
+**Behavior:**
+1. **Selects a single account** via interactive prompt (if multiple exist) or `--user-id` flag.
+2. **Crawls** the specified window for that account.
+3. **Generates stats** file at `{account_dir}/stats-{window}.json`.
+4. **Renders** in specified formats to the output directory.
+
+**Examples:**
+
+Crawl and render year 2025:
+```bash
+my 2025
+```
+
+Crawl and render for specific account:
+```bash
+my 2025 --user-id @alice:example.org
+```
+
+Crawl, render, and specify output directory:
+```bash
+my 2025 --output reports
+my 2025 --user-id @alice:example.org --output reports
+```
+
+Crawl and render specific formats:
+```bash
+my 2025 --formats md
+my 2025 --formats md --output reports
+```
+
+Other windows:
+```bash
+my 2025-03        # Month
+my 2025-W12       # Week  
+my 2025-03-15     # Day
+my life           # Entire history
+```
+
+**Note:** Unlike `my crawl`, the window command only processes **one account** per invocation to ensure a clear crawl→render workflow.
+
 ### `status`
 
 Show the status of all logged-in Matrix accounts, including account IDs, homeserver, and session health. Useful for quickly checking which accounts are active and whether credentials are valid.
@@ -162,43 +219,53 @@ Reset a specific account:
 my reset --user-id @alice:example.org
 ```
 
-### `--render`
+### `render`
 
-Generate windowed reports (year, month, week, day, life) in one or more formats.
+Generate windowed reports (year, month, week, day, life) in one or more formats from a stats file.
 
 **Usage:**
 ```bash
-my --render [formats] --json-stats <path> [--output <dir>]
+my render --stats <path> [--formats <list>] [--output <dir>]
 ```
 
-**Arguments:**
-- `--render [formats]` — Comma-separated list of formats to render (e.g., `md`, `md,html`). If omitted after flag or left empty, renders all available formats.
-- `--json-stats <path>` — (Optional, required for now) Path to JSON statistics file. Stats **must** include `scope` (`year|month|week|day|life`) and `scope.key`.
-- `--output <dir>` — (Optional) Output directory for generated reports. Defaults to current directory. Filenames are generated automatically based on the scope (e.g., `my-year-2025.md`, `my-month-2025-03.md`, `my-week-2025-W12.md`, `my-day-2025-03-15.md`, `my-life.md`).
+**Options:**
+- `--stats <path>` — (Required) Path to JSON stats file. The stats file contains all necessary metadata (scope, window, account info).
+- `--formats <list>` — Comma-separated list of formats (e.g., `md`, `md,html`). Defaults to all available formats.
+- `--output <dir>` — Output directory for generated reports. Defaults to current directory.
+
+**Behavior:**
+- Loads stats from the provided file path.
+- Generates reports in requested formats (currently only `md` is implemented).
+- Filenames are auto-generated based on scope from the stats file:
+  - Year: `my-year-2025.md`
+  - Month: `my-month-2025-03.md`
+  - Week: `my-week-2025-W12.md`
+  - Day: `my-day-2025-03-15.md`
+  - Life: `my-life.md`
 
 **Examples:**
 
-Render Markdown report:
+Render from stats file to current directory:
 ```bash
-my --render md --json-stats examples/example-stats.json --output examples
+my render --stats examples/example-stats.json
 ```
 
-Render multiple formats:
+Render to specific output directory:
 ```bash
-my --render md,html --json-stats examples/example-stats.json --output reports
+my render --stats examples/example-stats.json --output reports
 ```
 
-Render to current directory:
+Render specific formats:
 ```bash
-my --render md --json-stats examples/example-stats.json
+my render --stats examples/example-stats.json --formats md
 ```
 
-Render other windows:
+Render different windows:
 ```bash
-my --render md --json-stats examples/example-stats-2025-03.json --output examples
-my --render md --json-stats examples/example-stats-2025-W12.json --output examples
-my --render md --json-stats examples/example-stats-2025-03-15.json --output examples
-my --render md --json-stats examples/example-stats-life.json --output examples
+my render --stats examples/example-stats-2025-03.json
+my render --stats examples/example-stats-2025-W12.json
+my render --stats examples/example-stats-2025-03-15.json
+my render --stats examples/example-stats-life.json
 ```
 
 **Sample outputs:**
@@ -217,7 +284,7 @@ my --render md --json-stats examples/example-stats-life.json --output examples
 During development, you can run commands directly using `cargo run`:
 
 ```bash
-cargo run -- --render md --json-stats examples/example-stats.json
+cargo run -- render --stats examples/example-stats.json
 ```
 
 The `--` separator tells Cargo to pass all following arguments to the `my` binary.
