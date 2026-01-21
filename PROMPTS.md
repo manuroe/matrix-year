@@ -267,3 +267,21 @@ By default, no account is selected but the selector remembers the last choice. T
 > Start implementation with the recommanded soltuions for Further Considerations
 
 > PR it
+
+## PR: Implement unified crawl-then-render command with simplified render interface
+
+> Now, I want to implement the final bit: `my 2025` that will operate a crawl operation on 2025 (ie `my crawl 2025`) then a render operation (ie `my render` in all possible output format )
+> 
+> `my render` and its parameters probably need to be simplified. There were changes since we drafted it. Now, it just take the output of `my crawl` from which it can know the scope type.
+
+> Multi-account rendering strategy — When my 2025 crawls multiple accounts (no --user-id), should it render all accounts' stats or prompt which to render? Option A: render all (could create many files), Option B: prompt for each account, Option C: skip render if multiple accounts crawled.
+>
+> the account selector should be used. Only one account can be selected.
+
+> Start implementation
+
+> Simplify `my render` even more. Remove the `window` and `--user-id` parameter. The input is only the `stats` file where those data can be extracted
+
+> add the same `--output` and `--formats` parameters as `my render`
+
+> PR it
