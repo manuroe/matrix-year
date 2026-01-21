@@ -131,6 +131,22 @@ enum Commands {
     Window(Vec<String>),
 }
 
+/// Arguments for the window shorthand command parsed via clap
+#[derive(Parser, Debug)]
+struct WindowArgs {
+    /// Time window (e.g. 2025, 2025-03, 2025-W12, 2025-03-15, life)
+    window: String,
+    /// Matrix user id (optional). If omitted, prompts for selection.
+    #[arg(long)]
+    user_id: Option<String>,
+    /// Comma-separated formats (md,html). Default: md.
+    #[arg(long, default_value = "")]
+    formats: String,
+    /// Output directory (defaults to current directory).
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -146,52 +162,43 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Handle subcommands first
     if let Some(cmd) = cli.command {
         match cmd {
             Commands::Login { user_id } => {
-                // Run interactive login flow
                 tokio::runtime::Runtime::new()
                     .context("Failed to create Tokio runtime")?
                     .block_on(login::run(user_id))?;
                 return Ok(());
             }
             Commands::Logout { user_id } => {
-                // Run logout flow
                 tokio::runtime::Runtime::new()
                     .context("Failed to create Tokio runtime")?
                     .block_on(logout::run(user_id))?;
                 return Ok(());
             }
             Commands::Status { user_id, list } => {
-                // Run status (needs async for cross-signing check)
                 tokio::runtime::Runtime::new()
                     .context("Failed to create Tokio runtime")?
                     .block_on(status::run(user_id, list))?;
                 return Ok(());
             }
             Commands::Crawl { window, user_id } => {
-                // Run crawl and collect stats
                 let account_stats = tokio::runtime::Runtime::new()
                     .context("Failed to create Tokio runtime")?
                     .block_on(crawl::run(window, user_id))?;
 
-                // Write stats for each account
                 for (account_id, stats) in account_stats {
-                    // Get account data directory using existing helper
                     let data_dir = login::resolve_data_root()?;
                     let account_dirname = login::account_id_to_dirname(&account_id);
                     let account_dir = data_dir.join("accounts").join(&account_dirname);
                     let stats_filename = format!("stats-{}.json", stats.scope.key);
                     let stats_path = account_dir.join(stats_filename);
 
-                    // Ensure account directory exists
                     std::fs::create_dir_all(&account_dir).context(format!(
                         "Failed to create account directory: {:?}",
                         account_dir
                     ))?;
 
-                    // Write stats JSON file
                     let stats_json = serde_json::to_string_pretty(&stats)
                         .context("Failed to serialize stats")?;
                     std::fs::write(&stats_path, stats_json)
@@ -203,7 +210,6 @@ fn main() -> Result<()> {
                 return Ok(());
             }
             Commands::Reset { user_id } => {
-                // Run reset
                 tokio::runtime::Runtime::new()
                     .context("Failed to create Tokio runtime")?
                     .block_on(reset::run(user_id))?;
@@ -214,56 +220,19 @@ fn main() -> Result<()> {
                 formats,
                 output,
             } => {
-                // Render command: load stats and generate reports
                 handle_render(stats, formats, output)?;
                 return Ok(());
             }
             Commands::Window(args) => {
-                // Window command: crawl + render for a time window
                 if args.is_empty() {
                     anyhow::bail!("Window pattern required (e.g., my 2025)");
                 }
 
-                // Parse window and flags from args
-                let window = args[0].clone();
-                let mut user_id = None;
-                let mut formats = String::new();
-                let mut output = None;
+                let mut argv = vec!["window".to_string()];
+                argv.extend(args);
+                let parsed = WindowArgs::try_parse_from(argv)?;
 
-                let mut i = 1;
-                while i < args.len() {
-                    match args[i].as_str() {
-                        "--user-id" => {
-                            if i + 1 < args.len() {
-                                user_id = Some(args[i + 1].clone());
-                                i += 2;
-                            } else {
-                                anyhow::bail!("--user-id requires a value");
-                            }
-                        }
-                        "--formats" => {
-                            if i + 1 < args.len() {
-                                formats = args[i + 1].clone();
-                                i += 2;
-                            } else {
-                                anyhow::bail!("--formats requires a value");
-                            }
-                        }
-                        "-o" | "--output" => {
-                            if i + 1 < args.len() {
-                                output = Some(PathBuf::from(&args[i + 1]));
-                                i += 2;
-                            } else {
-                                anyhow::bail!("-o/--output requires a value");
-                            }
-                        }
-                        _ => {
-                            anyhow::bail!("Unknown flag: {}", args[i]);
-                        }
-                    }
-                }
-
-                handle_window(window, user_id, formats, output)?;
+                handle_window(parsed.window, parsed.user_id, parsed.formats, parsed.output)?;
                 return Ok(());
             }
         }
@@ -273,7 +242,6 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-/// Handle the window command: crawl + render for a single account
 fn handle_window(
     window: String,
     user_id_flag: Option<String>,
@@ -282,7 +250,6 @@ fn handle_window(
 ) -> Result<()> {
     eprintln!("🔍 Window: {}", window);
 
-    // Step 1: Select single account
     let mut selector = account_selector::AccountSelector::new()?;
     let accounts = selector.select_accounts(user_id_flag.as_ref().cloned(), false)?;
 
@@ -290,20 +257,19 @@ fn handle_window(
         anyhow::bail!("No accounts found. Use 'my login' first.");
     } else if accounts.len() > 1 {
         anyhow::bail!(
-            "Multiple accounts found. Window command requires exactly one account. Use --user-id to specify which account."
+            "Multiple accounts found. Window command requires exactly one account. \
+             Use --user-id to specify which account."
         );
     }
 
     let (account_id, account_dir) = &accounts[0];
     eprintln!("📱 Account: {}", account_id);
 
-    // Step 2: Crawl the window (pass the selected account_id to avoid double selection)
     eprintln!("\n🔄 Crawling {}...", window);
     let account_stats = tokio::runtime::Runtime::new()
         .context("Failed to create Tokio runtime")?
-        .block_on(crawl::run(window.clone(), user_id_flag))?;
+        .block_on(crawl::run(window.clone(), Some(account_id.clone())))?;
 
-    // Write stats for the account (we expect exactly one entry)
     let (acc_id, stats) = account_stats
         .into_iter()
         .next()
@@ -323,7 +289,6 @@ fn handle_window(
 
     eprintln!("📊 Stats saved: {}", stats_path.display());
 
-    // Step 3: Render with provided formats and output directory
     eprintln!("\n📝 Rendering reports...");
     let output_dir = output.unwrap_or_else(|| PathBuf::from("."));
     render_stats(&stats, &output_dir, &formats)?;
@@ -333,21 +298,13 @@ fn handle_window(
     Ok(())
 }
 
-/// Handle the render command
 fn handle_render(stats_path: PathBuf, formats: String, output: Option<PathBuf>) -> Result<()> {
-    // Load stats from provided path
     let stats = stats::Stats::load_from_file(&stats_path)?;
-
-    // Determine output directory
     let output_dir = output.unwrap_or_else(|| PathBuf::from("."));
-
-    // Render stats
     render_stats(&stats, &output_dir, &formats)?;
-
     Ok(())
 }
 
-/// Render stats to the specified directory in the given formats
 fn render_stats(stats: &stats::Stats, output_dir: &Path, formats_arg: &str) -> Result<()> {
     std::fs::create_dir_all(output_dir).with_context(|| {
         format!(
@@ -356,15 +313,12 @@ fn render_stats(stats: &stats::Stats, output_dir: &Path, formats_arg: &str) -> R
         )
     })?;
 
-    // Parse formats
     let formats: Vec<&str> = if formats_arg.is_empty() {
-        // Empty string defaults to md format
         vec!["md"]
     } else {
         formats_arg.split(',').map(|s| s.trim()).collect()
     };
 
-    // Render each format
     for format in formats {
         match format {
             "md" => {
