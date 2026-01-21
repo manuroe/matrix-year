@@ -293,6 +293,9 @@ pub fn build_stats(
     let (coverage_from, coverage_to, days_active) =
         compute_coverage_bounds(&coverage, window_scope)?;
 
+    // Build activity section early to consume temporal struct
+    let activity = build_activity_section(temporal, messages_sent)?;
+
     // Build Stats struct
     let stats = Stats {
         schema_version: 1,
@@ -333,8 +336,8 @@ pub fn build_stats(
             },
             peaks,
         },
-        activity: build_activity_section(&temporal, messages_sent)?,
-        rooms: build_rooms_section(top_rooms, &room_types, messages_sent, active_rooms_count)?,
+        activity,
+        rooms: build_rooms_section(top_rooms, &room_types, active_rooms_count)?,
         reactions: build_reactions_section(top_emojis, top_messages, total_reactions)?,
         created_rooms: build_created_rooms_section(&created_rooms)?,
         fun: None, // TODO: Implement fun stats later
@@ -349,7 +352,7 @@ pub fn build_stats(
 
 /// Builds the Activity section of stats from temporal aggregates (private).
 fn build_activity_section(
-    temporal: &TemporalAggregates,
+    temporal: TemporalAggregates,
     messages_sent: i32,
 ) -> Result<Option<Activity>> {
     if messages_sent == 0 {
@@ -358,32 +361,32 @@ fn build_activity_section(
 
     Ok(Some(Activity {
         by_year: if !temporal.by_year.is_empty() {
-            Some(temporal.by_year.clone())
+            Some(temporal.by_year)
         } else {
             None
         },
         by_month: if !temporal.by_month.is_empty() {
-            Some(temporal.by_month.clone())
+            Some(temporal.by_month)
         } else {
             None
         },
         by_week: if !temporal.by_week.is_empty() {
-            Some(temporal.by_week.clone())
+            Some(temporal.by_week)
         } else {
             None
         },
         by_weekday: if !temporal.by_weekday.is_empty() {
-            Some(temporal.by_weekday.clone())
+            Some(temporal.by_weekday)
         } else {
             None
         },
         by_day: if !temporal.by_day.is_empty() {
-            Some(temporal.by_day.clone())
+            Some(temporal.by_day)
         } else {
             None
         },
         by_hour: if !temporal.by_hour.is_empty() {
-            Some(temporal.by_hour.clone())
+            Some(temporal.by_hour)
         } else {
             None
         },
@@ -394,7 +397,6 @@ fn build_activity_section(
 fn build_rooms_section(
     top_rooms: Vec<RoomEntry>,
     room_types: &RoomTypeMetrics,
-    _messages_sent: i32,
     active_rooms_count: i32,
 ) -> Result<Option<Rooms>> {
     if active_rooms_count == 0 {
