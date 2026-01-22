@@ -6,6 +6,14 @@ on:
   pull_request:
     branches: [ main ]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_INCREMENTAL: 0
+  RUSTFLAGS: -C debuginfo=0
+
 jobs:
   clippy:
     name: Clippy
@@ -17,6 +25,8 @@ jobs:
           components: clippy
       - name: Run clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Show sccache stats
+        run: sccache --show-stats || true
 
   test:
     name: Test
@@ -28,6 +38,8 @@ jobs:
           nextest: 'true'
       - name: Run tests
         run: cargo nextest run --all-features
+      - name: Show sccache stats
+        run: sccache --show-stats || true
 
   fmt:
     name: Format

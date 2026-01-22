@@ -308,3 +308,7 @@ By default, no account is selected but the selector remembers the last choice. T
 > check the docs once more for alignment with the changes
 
 > PR it following agents.md
+
+## PR: CI speed-ups with sccache and shared cache keys
+
+- Those CI jobs are slow: [links]. Optimise our CI
