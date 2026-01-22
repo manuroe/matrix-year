@@ -41,10 +41,17 @@ runs:
     - name: Configure sccache
       shell: bash
       run: |
-        export RUSTC_WRAPPER=sccache
-        export SCCACHE_GHA_ENABLED=true
-        export SCCACHE_CACHE_SIZE=500M
-        echo "RUSTC_WRAPPER=$RUSTC_WRAPPER" >> $GITHUB_ENV
-        echo "SCCACHE_GHA_ENABLED=$SCCACHE_GHA_ENABLED" >> $GITHUB_ENV
-        echo "SCCACHE_CACHE_SIZE=$SCCACHE_CACHE_SIZE" >> $GITHUB_ENV
-        sccache --start-server || true
+        if [[ -n "${ACTIONS_CACHE_URL:-}" && -n "${ACTIONS_RUNTIME_TOKEN:-}" ]]; then
+          export RUSTC_WRAPPER=sccache
+          export SCCACHE_GHA_ENABLED=true
+          export SCCACHE_CACHE_SIZE=500M
+          echo "RUSTC_WRAPPER=$RUSTC_WRAPPER" >> $GITHUB_ENV
+          echo "SCCACHE_GHA_ENABLED=$SCCACHE_GHA_ENABLED" >> $GITHUB_ENV
+          echo "SCCACHE_CACHE_SIZE=$SCCACHE_CACHE_SIZE" >> $GITHUB_ENV
+          sccache --start-server || true
+        else
+          echo "ACTIONS_CACHE_URL missing; running without sccache"
+          echo "RUSTC_WRAPPER=" >> $GITHUB_ENV
+          echo "SCCACHE_GHA_ENABLED=" >> $GITHUB_ENV
+          echo "SCCACHE_CACHE_SIZE=" >> $GITHUB_ENV
+        fi
