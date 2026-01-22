@@ -5,8 +5,8 @@
 use anyhow::Result;
 use std::collections::HashMap;
 
-use crate::crawl::types::DetailedPaginationStats;
-use crate::crawl::RoomType;
+use super::types::DetailedPaginationStats;
+use super::RoomType;
 use crate::stats::*;
 use crate::window::WindowScope;
 

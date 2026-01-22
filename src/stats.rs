@@ -289,11 +289,11 @@ mod tests {
     use std::path::PathBuf;
 
     fn get_schema_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("stats_schema.json")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("docs/stats_schema.json")
     }
 
     fn get_example_stats_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/example-stats.json")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/stats/example-stats.json")
     }
 
     #[test]

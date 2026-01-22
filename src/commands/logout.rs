@@ -9,7 +9,7 @@ use std::fs;
 use std::path::Path;
 use url::Url;
 
-use crate::login::{account_id_to_dirname, prompt, resolve_data_root, SessionMetaFile};
+use crate::commands::login::{account_id_to_dirname, prompt, resolve_data_root, SessionMetaFile};
 
 pub async fn run(user_id_flag: Option<String>) -> Result<()> {
     let data_root = resolve_data_root()?;

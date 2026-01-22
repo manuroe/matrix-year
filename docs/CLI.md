@@ -247,33 +247,33 @@ my render --stats <path> [--formats <list>] [--output <dir>]
 
 Render from stats file to current directory:
 ```bash
-my render --stats examples/example-stats.json
+my render --stats examples/stats/example-stats.json
 ```
 
 Render to specific output directory:
 ```bash
-my render --stats examples/example-stats.json --output reports
+my render --stats examples/stats/example-stats.json --output reports
 ```
 
 Render specific formats:
 ```bash
-my render --stats examples/example-stats.json --formats md
+my render --stats examples/stats/example-stats.json --formats md
 ```
 
 Render different windows:
 ```bash
-my render --stats examples/example-stats-2025-03.json
-my render --stats examples/example-stats-2025-W12.json
-my render --stats examples/example-stats-2025-03-15.json
-my render --stats examples/example-stats-life.json
+my render --stats examples/stats/example-stats-2025-03.json
+my render --stats examples/stats/example-stats-2025-W12.json
+my render --stats examples/stats/example-stats-2025-03-15.json
+my render --stats examples/stats/example-stats-life.json
 ```
 
 **Sample outputs:**
-- [examples/my-year-2025.md](examples/my-year-2025.md)
-- [examples/my-month-2025-03.md](examples/my-month-2025-03.md)
-- [examples/my-week-2025-W12.md](examples/my-week-2025-W12.md)
-- [examples/my-day-2025-03-15.md](examples/my-day-2025-03-15.md)
-- [examples/my-life.md](examples/my-life.md)
+- [examples/output/my-year-2025.md](examples/output/my-year-2025.md)
+- [examples/output/my-month-2025-03.md](examples/output/my-month-2025-03.md)
+- [examples/output/my-week-2025-W12.md](examples/output/my-week-2025-W12.md)
+- [examples/output/my-day-2025-03-15.md](examples/output/my-day-2025-03-15.md)
+- [examples/output/my-life.md](examples/output/my-life.md)
 
 ---
 
@@ -284,7 +284,7 @@ my render --stats examples/example-stats-life.json
 During development, you can run commands directly using `cargo run`:
 
 ```bash
-cargo run -- render --stats examples/example-stats.json
+cargo run -- render --stats examples/stats/example-stats.json
 ```
 
 The `--` separator tells Cargo to pass all following arguments to the `my` binary.

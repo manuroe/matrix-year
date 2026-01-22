@@ -227,14 +227,14 @@ The project **does not** directly manage Matrix event storage.
 
 ### Stats schema
 
-Stats are stored as JSON files conforming to the schema in `stats_schema.json`:
+Stats are stored as JSON files conforming to the schema in [docs/stats_schema.json](docs/stats_schema.json):
 
 - Schema version: 1
 - Required fields: scope, account, coverage, summary
 - Optional sections: activity, rooms, reactions, created_rooms, fun
 - All temporal data uses numeric formats (months: "01"-"12", weekdays: "1"-"7")
 
-See [stats_spec.md](stats_spec.md) and [stats_schema.json](stats_schema.json) for complete schema documentation.
+See [docs/stats_spec.md](docs/stats_spec.md) and [docs/stats_schema.json](docs/stats_schema.json) for complete schema documentation.
 
 ### Guarantees
 
@@ -469,10 +469,11 @@ Agents **must respect**:
 
 - Account isolation (no cross-account reads)
 - Account selection via `AccountSelector` module (provides unified account discovery, interactive selection UI, and preference storage)
-- Database abstraction (do not access SQLite directly; use `CrawlDb`)
+- Database abstraction (do not access SQLite directly; use `CrawlDb` from `commands::crawl::db`)
 - Credential storage abstraction (access via `AccountSecretsStore` API only)
 - Incremental crawling via sync tokens
 - Session persistence via SDK sessions
+- Module organization: all CLI commands live under `src/commands/` (single files or subdirectories)
 
 Agents **must not**:
 
@@ -616,22 +617,22 @@ When asked to create a pull request, agents **must** follow this sequence. If th
 Before proceeding, verify **consistency across three dimensions**:
 
 - **Code:** Implementation correctly reflects the intended behavior
-- **Docs:** CLI.md and agents.md document all user-facing changes
+- **Docs:** docs/CLI.md and agents.md document all user-facing changes
 - **Examples:** Run all examples to ensure generated output is current and valid
 
 Verify documentation is up-to-date:
-- Check CLI.md accurately reflects current command behavior and options
+- Check docs/CLI.md accurately reflects current command behavior and options
 - Ensure agents.md captures any architectural changes or new constraints
 - Confirm all command examples in docs match actual implementation
 
 Rebuild all examples and validate output:
 ```bash
-cargo run -- --render md --json-stats examples/example-stats.json --output examples
+cargo run -- --render md --json-stats examples/stats/example-stats.json --output examples/output
 ```
 
 #### 2. Document Session Prompts
 
-Create or update `PROMPTS.md` with a new section containing:
+Create or update [docs/PROMPTS.md](docs/PROMPTS.md) with a new section containing:
 
 - **Section title:** The PR title
 - **Content:** All user prompts from the current session, in chronological order
@@ -664,11 +665,11 @@ Commit formatting changes with a separate "chore: apply cargo fmt" commit before
 
 #### 6. Request Validation
 
-**Before creating the PR**, present the `PROMPTS.md` additions to the user and ask:
+**Before creating the PR**, present the docs/PROMPTS.md additions to the user and ask:
 
-> I've documented the session prompts in PROMPTS.md. Please review the following additions:
+> I've documented the session prompts in docs/PROMPTS.md. Please review the following additions:
 >
-> [show PROMPTS.md section]
+> [show docs/PROMPTS.md section]
 >
 > Should I proceed with creating the pull request?
 

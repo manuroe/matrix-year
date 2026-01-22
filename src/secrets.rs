@@ -91,7 +91,7 @@ impl AccountSecretsStore {
 
 fn credentials_file_path(account_id: &str) -> PathBuf {
     let data_dir = std::env::var("MY_DATA_DIR").unwrap_or_else(|_| ".my".to_string());
-    let account_dirname = crate::login::account_id_to_dirname(account_id);
+    let account_dirname = crate::commands::login::account_id_to_dirname(account_id);
     Path::new(&data_dir)
         .join("accounts")
         .join(account_dirname)

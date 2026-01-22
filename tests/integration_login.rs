@@ -50,10 +50,14 @@ async fn test_login_with_cross_signing() -> Result<()> {
         .context("No host in homeserver URL")?
         .to_string();
 
-    let (client, actual_user_id, _restored) =
-        my::login::login_with_credentials(&homeserver_host, &user_id, &password, &accounts_root)
-            .await
-            .context("Login failed")?;
+    let (client, actual_user_id, _restored) = my::commands::login::login_with_credentials(
+        &homeserver_host,
+        &user_id,
+        &password,
+        &accounts_root,
+    )
+    .await
+    .context("Login failed")?;
 
     println!("✓ Login successful for: {}", actual_user_id);
 
@@ -73,13 +77,13 @@ async fn test_login_with_cross_signing() -> Result<()> {
     assert_eq!(expected_user_id, actual_user_id, "User ID mismatch");
 
     // Step 2: Initialize encryption
-    my::login::initialize_encryption(&client)
+    my::commands::login::initialize_encryption(&client)
         .await
         .context("Failed to initialize encryption")?;
     println!("✓ Encryption initialized");
 
     // Step 3: Verify device with recovery key
-    my::login::verify_with_recovery_key(&client, &recovery_key)
+    my::commands::login::verify_with_recovery_key(&client, &recovery_key)
         .await
         .context("Failed to verify device with recovery key")?;
     println!("✓ Device verified with recovery key");
@@ -103,9 +107,10 @@ async fn test_login_with_cross_signing() -> Result<()> {
     // Step 4: Verify encryption state persists in account directory
     // This tests that the SDK database with encryption keys was properly stored
     // by reusing the status module's check_account_status function
-    let account_dir = accounts_root.join(my::login::account_id_to_dirname(&actual_user_id));
+    let account_dir =
+        accounts_root.join(my::commands::login::account_id_to_dirname(&actual_user_id));
 
-    let status = my::status::check_account_status(&account_dir, &actual_user_id)
+    let status = my::commands::status::check_account_status(&account_dir, &actual_user_id)
         .await
         .context("Failed to check account status")?;
 
@@ -128,7 +133,7 @@ async fn test_login_with_cross_signing() -> Result<()> {
     println!("  Cross-signing: {}", status.cross_signing_status);
 
     // Step 5: Test logout
-    my::logout::logout(accounts_root.clone(), &actual_user_id)
+    my::commands::logout::logout(accounts_root.clone(), &actual_user_id)
         .await
         .context("Failed to logout")?;
     println!("✓ Logout successful");

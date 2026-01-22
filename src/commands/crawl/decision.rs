@@ -5,7 +5,7 @@
 use anyhow::Result;
 use std::collections::{HashMap, HashSet};
 
-use crate::crawl_db;
+use super::db;
 
 /// Decides whether a given room should be crawled based on window coverage and metadata.
 ///
@@ -37,7 +37,7 @@ use crate::crawl_db;
 /// * `window_end_ts` - Window end timestamp
 /// * `latest_event` - Latest event info from room list sync (event_id, timestamp)
 pub fn should_crawl_room(
-    db: &crawl_db::CrawlDb,
+    db: &db::CrawlDb,
     room_id: &str,
     window_start_ts: Option<i64>,
     window_end_ts: i64,
@@ -103,7 +103,7 @@ pub fn should_crawl_room(
 /// * `latest_events` - Latest event info for each room from room list sync
 pub fn select_rooms_to_crawl(
     joined_rooms: &[matrix_sdk::Room],
-    db: &crawl_db::CrawlDb,
+    db: &db::CrawlDb,
     window_start_ts: Option<i64>,
     window_end_ts: Option<i64>,
     latest_events: &HashMap<String, (String, i64)>,
@@ -140,7 +140,7 @@ pub fn select_rooms_to_crawl(
 /// Returns an error if database updates fail. This is treated as a hard error
 /// since it indicates a database problem that should be surfaced.
 pub fn record_skipped_virgin_rooms(
-    db: &crawl_db::CrawlDb,
+    db: &db::CrawlDb,
     joined_rooms: &[matrix_sdk::Room],
     rooms_to_crawl: &[matrix_sdk::Room],
     latest_events: &HashMap<String, (String, i64)>,
@@ -159,7 +159,7 @@ pub fn record_skipped_virgin_rooms(
 /// Helper: selects room IDs to crawl. Testable without Matrix SDK types.
 fn select_room_ids_to_crawl(
     joined_room_ids: &[String],
-    db: &crawl_db::CrawlDb,
+    db: &db::CrawlDb,
     window_start_ts: Option<i64>,
     window_end_ts: Option<i64>,
     latest_events: &HashMap<String, (String, i64)>,
@@ -191,7 +191,7 @@ fn select_room_ids_to_crawl(
 
 /// Helper: records skipped virgin room IDs. Testable without Matrix SDK types.
 fn record_skipped_virgin_rooms_ids(
-    db: &crawl_db::CrawlDb,
+    db: &db::CrawlDb,
     joined_room_ids: &[String],
     rooms_to_crawl_ids: &HashSet<String>,
     latest_events: &HashMap<String, (String, i64)>,
@@ -216,9 +216,7 @@ fn record_skipped_virgin_rooms_ids(
                         )
                     })?;
                     // Mark as virgin (skipped, never crawled)
-                    if let Err(e) =
-                        db.set_crawl_status(room_id_str, crate::crawl_db::CrawlStatus::Virgin)
-                    {
+                    if let Err(e) = db.set_crawl_status(room_id_str, db::CrawlStatus::Virgin) {
                         eprintln!(
                             "Warning: Failed to mark room {} as Virgin: {}",
                             room_id_str, e
@@ -235,9 +233,9 @@ fn record_skipped_virgin_rooms_ids(
 mod tests {
     use super::*;
 
-    fn setup_db() -> anyhow::Result<(crawl_db::CrawlDb, tempfile::TempDir)> {
+    fn setup_db() -> anyhow::Result<(db::CrawlDb, tempfile::TempDir)> {
         let tmp = tempfile::tempdir()?;
-        let db = crawl_db::CrawlDb::init(tmp.path())?;
+        let db = db::CrawlDb::init(tmp.path())?;
         Ok((db, tmp))
     }
 
