@@ -20,21 +20,24 @@ on:
     branches: [main]
   workflow_dispatch: # Allow manual trigger
 
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   integration-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CARGO_INCREMENTAL: 0
+      RUSTFLAGS: -C debuginfo=0
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: Build project
-        run: cargo build --release
+      - name: Setup Rust env (toolchain + cache)
+        uses: ./.github/actions/setup-rust-env
 
       - name: Run integration test
         env:
@@ -43,6 +46,9 @@ jobs:
           MY_TEST_PASSWORD: ${{ secrets.MY_TEST_PASSWORD }}
           MY_TEST_RECOVERY_KEY: ${{ secrets.MY_TEST_RECOVERY_KEY }}
         run: cargo test --test integration_login -- --ignored --nocapture
+
+      - name: Show sccache stats
+        run: sccache --show-stats || true
 
       - name: Cleanup test artifacts
         if: always()

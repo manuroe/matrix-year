@@ -25,7 +25,23 @@ runs:
 
     - name: Setup Rust cache
       uses: Swatinem/rust-cache@v2
+      with:
+        shared-key: ci-global
+        save-if: true
 
     - name: Install cargo-nextest
       if: inputs.nextest == 'true'
       uses: taiki-e/install-action@nextest
+
+    - name: Install sccache
+      uses: taiki-e/install-action@v2
+      with:
+        tool: sccache
+
+    - name: Configure sccache
+      shell: bash
+      run: |
+        echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+        echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+        echo "SCCACHE_CACHE_SIZE=500M" >> $GITHUB_ENV
+        sccache --start-server || true
