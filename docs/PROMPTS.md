@@ -285,3 +285,26 @@ By default, no account is selected but the selector remembers the last choice. T
 > add the same `--output` and `--formats` parameters as `my render`
 
 > PR it
+
+---
+
+## PR: Reorganize project structure for better modularity
+
+> It is now time to reorganise the project. No need of a bit refactoring. Just reogoanising the files to better understand the project. What do you propose?
+
+> Start implementation
+
+> is the doc up-to-date following this migration?
+
+> but `my crawl` and `my render` are commands. Why can't their code be under the `commands` folder?
+> It is likely that login.rs will expand later to its own folder when adding more features
+
+> Start implementation
+
+> any advices for files remaining in `src/`?
+
+> Start implementation
+
+> check the docs once more for alignment with the changes
+
+> PR it following agents.md

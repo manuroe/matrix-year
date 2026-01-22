@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-use crate::login::{account_id_to_dirname, resolve_data_root};
+use crate::commands::login::{account_id_to_dirname, resolve_data_root};
 
 /// Preferences for account selection, stored globally.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

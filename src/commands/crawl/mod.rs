@@ -16,10 +16,10 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::account_selector::AccountSelector;
-use crate::crawl_db;
 use crate::stats;
 use crate::window::WindowScope;
 
+pub mod db;
 pub mod types;
 pub use types::RoomCrawlStats;
 use types::RoomJoinState;
@@ -33,6 +33,8 @@ use discovery::{fetch_room_list_via_sliding_sync, setup_account};
 mod pagination;
 
 pub mod progress;
+
+pub mod stats_builder;
 use progress::CrawlProgress;
 
 /// Maximum number of rooms to crawl concurrently.
@@ -173,7 +175,7 @@ async fn crawl_account(
 
     // 5) Build account-level stats from room statistics
     // Note: Account profile fetch is not available in current SDK; passing None for now
-    let stats = crate::stats_builder::build_stats(
+    let stats = stats_builder::build_stats(
         room_stats_inputs,
         account_id,
         None,
@@ -195,10 +197,10 @@ async fn crawl_account(
 async fn crawl_rooms_parallel(
     rooms: Vec<matrix_sdk::Room>,
     window_scope: &WindowScope,
-    db: &crawl_db::CrawlDb,
+    db: &db::CrawlDb,
     account_id: &str,
     total_rooms: usize,
-) -> (usize, usize, Vec<crate::stats_builder::RoomStatsInput>) {
+) -> (usize, usize, Vec<stats_builder::RoomStatsInput>) {
     let mut success_count = 0usize;
     let mut error_count = 0usize;
     let mut room_stats_inputs = Vec::new();
@@ -246,17 +248,16 @@ async fn crawl_rooms_parallel(
                 ) {
                     error_count += 1;
                     // Mark as error
-                    let _ =
-                        db.set_crawl_status(&room_id, crawl_db::CrawlStatus::Error(e.to_string()));
+                    let _ = db.set_crawl_status(&room_id, db::CrawlStatus::Error(e.to_string()));
                     progress.println(&format!("  \x1b[31m✗\x1b[0m {} ({})", room_name, e));
                 } else {
                     success_count += 1;
                     // Mark as success and update event counts
-                    let _ = db.set_crawl_status(&room_id, crawl_db::CrawlStatus::Success);
+                    let _ = db.set_crawl_status(&room_id, db::CrawlStatus::Success);
                     let _ =
                         db.update_max_event_counts(&room_id, stats.total_events, stats.user_events);
 
-                    use crate::crawl::progress::format_completed_room;
+                    use progress::format_completed_room;
                     let formatted = format_completed_room(
                         &room_name,
                         stats.total_events,
@@ -269,7 +270,7 @@ async fn crawl_rooms_parallel(
 
                     // Collect room stats input for aggregation
                     if let (Some(room_type), Some(detailed)) = (room_type, detailed_stats) {
-                        room_stats_inputs.push(crate::stats_builder::RoomStatsInput {
+                        room_stats_inputs.push(stats_builder::RoomStatsInput {
                             room_id: stats.room_id,
                             room_name: Some(stats.room_name),
                             room_type,
@@ -282,7 +283,7 @@ async fn crawl_rooms_parallel(
                 error_count += 1;
 
                 // Mark as error
-                let _ = db.set_crawl_status(&room_id, crawl_db::CrawlStatus::Error(e.to_string()));
+                let _ = db.set_crawl_status(&room_id, db::CrawlStatus::Error(e.to_string()));
 
                 // Fetch room name for error reporting
                 let room_name = room
@@ -314,7 +315,7 @@ async fn crawl_single_room(
     window_end_ts: i64,
     user_id: String,
     progress: CrawlProgress,
-    db: &crawl_db::CrawlDb,
+    db: &db::CrawlDb,
 ) -> (
     matrix_sdk::Room,
     Result<RoomCrawlStats>,
@@ -334,7 +335,7 @@ async fn crawl_single_room(
 
     // Mark room as in-progress
     let room_id = room.room_id().to_string();
-    if let Err(e) = db.set_crawl_status(&room_id, crawl_db::CrawlStatus::InProgress) {
+    if let Err(e) = db.set_crawl_status(&room_id, db::CrawlStatus::InProgress) {
         eprintln!(
             "Warning: Failed to mark room {} as InProgress: {}",
             room_id, e

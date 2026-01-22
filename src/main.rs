@@ -3,18 +3,11 @@ use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
 
 mod account_selector;
-mod crawl;
-mod crawl_db;
+mod commands;
 mod logging;
-mod login;
-mod logout;
-mod renderer;
-mod reset;
 mod sdk;
 mod secrets;
 mod stats;
-mod stats_builder;
-mod status;
 mod timefmt;
 mod window;
 
@@ -43,7 +36,7 @@ Examples:
     my 2025                          # Crawl + render year 2025
     my 2025 --output reports         # With custom output directory
     my crawl 2025-03 --user-id @me:example.org
-    my render --stats examples/example-stats.json
+    my render --stats examples/stats/example-stats.json
 
 More help:
     my --help render";
@@ -60,8 +53,8 @@ Options:
     --output <dir>       Output directory (default: current directory)
 
 Examples:
-    my render --stats examples/example-stats.json
-    my render --stats examples/example-stats.json --formats md
+    my render --stats examples/stats/example-stats.json
+    my render --stats examples/stats/example-stats.json --formats md
     my render --stats stats.json --output reports";
 
 #[derive(Parser)]
@@ -167,29 +160,29 @@ fn main() -> Result<()> {
             Commands::Login { user_id } => {
                 tokio::runtime::Runtime::new()
                     .context("Failed to create Tokio runtime")?
-                    .block_on(login::run(user_id))?;
+                    .block_on(commands::login::run(user_id))?;
                 return Ok(());
             }
             Commands::Logout { user_id } => {
                 tokio::runtime::Runtime::new()
                     .context("Failed to create Tokio runtime")?
-                    .block_on(logout::run(user_id))?;
+                    .block_on(commands::logout::run(user_id))?;
                 return Ok(());
             }
             Commands::Status { user_id, list } => {
                 tokio::runtime::Runtime::new()
                     .context("Failed to create Tokio runtime")?
-                    .block_on(status::run(user_id, list))?;
+                    .block_on(commands::status::run(user_id, list))?;
                 return Ok(());
             }
             Commands::Crawl { window, user_id } => {
                 let account_stats = tokio::runtime::Runtime::new()
                     .context("Failed to create Tokio runtime")?
-                    .block_on(crawl::run(window, user_id))?;
+                    .block_on(commands::crawl::run(window, user_id))?;
 
                 for (account_id, stats) in account_stats {
-                    let data_dir = login::resolve_data_root()?;
-                    let account_dirname = login::account_id_to_dirname(&account_id);
+                    let data_dir = commands::login::resolve_data_root()?;
+                    let account_dirname = commands::login::account_id_to_dirname(&account_id);
                     let account_dir = data_dir.join("accounts").join(&account_dirname);
                     let stats_filename = format!("stats-{}.json", stats.scope.key);
                     let stats_path = account_dir.join(stats_filename);
@@ -212,7 +205,7 @@ fn main() -> Result<()> {
             Commands::Reset { user_id } => {
                 tokio::runtime::Runtime::new()
                     .context("Failed to create Tokio runtime")?
-                    .block_on(reset::run(user_id))?;
+                    .block_on(commands::reset::run(user_id))?;
                 return Ok(());
             }
             Commands::Render {
@@ -268,7 +261,10 @@ fn handle_window(
     eprintln!("\n🔄 Crawling {}...", window);
     let account_stats = tokio::runtime::Runtime::new()
         .context("Failed to create Tokio runtime")?
-        .block_on(crawl::run(window.clone(), Some(account_id.clone())))?;
+        .block_on(commands::crawl::run(
+            window.clone(),
+            Some(account_id.clone()),
+        ))?;
 
     let (acc_id, stats) = account_stats
         .into_iter()
@@ -322,7 +318,7 @@ fn render_stats(stats: &stats::Stats, output_dir: &Path, formats_arg: &str) -> R
     for format in formats {
         match format {
             "md" => {
-                let markdown = renderer::md::render(stats)?;
+                let markdown = commands::render::md::render(stats)?;
                 let filename = default_md_filename(stats);
                 let output_path = output_dir.join(filename);
                 std::fs::write(&output_path, markdown)?;

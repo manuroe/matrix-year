@@ -8,7 +8,6 @@ use matrix_sdk::ruma::events::StateEventType;
 use std::path::Path;
 
 use super::types::{RoomInfo, RoomJoinState};
-use crate::crawl_db;
 
 /// State event types needed for room list sync.
 /// Inspired by: https://github.com/matrix-org/matrix-rust-sdk/blob/matrix-sdk-ui-0.16.0/crates/matrix-sdk-ui/src/room_list_service/mod.rs#L81
@@ -43,12 +42,12 @@ const SLIDING_SYNC_BATCH_SIZE: usize = 50;
 pub async fn setup_account(
     account_id: &str,
     account_dir: &Path,
-) -> Result<(std::path::PathBuf, matrix_sdk::Client, crawl_db::CrawlDb)> {
+) -> Result<(std::path::PathBuf, matrix_sdk::Client, super::db::CrawlDb)> {
     if !account_dir.exists() {
         anyhow::bail!("Account directory not found: {}", account_dir.display());
     }
 
-    let db = crawl_db::CrawlDb::init(account_dir)
+    let db = super::db::CrawlDb::init(account_dir)
         .context("Failed to initialize crawl metadata database")?;
 
     let client = crate::sdk::restore_client_for_account(account_dir, account_id)

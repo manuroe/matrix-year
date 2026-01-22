@@ -1,5 +1,6 @@
 use crate::account_selector::AccountSelector;
-use crate::login::{account_id_to_dirname, resolve_data_root};
+use crate::commands::crawl::db;
+use crate::commands::login::{account_id_to_dirname, resolve_data_root};
 use crate::sdk::restore_client_for_account;
 use crate::timefmt::format_timestamp;
 use anyhow::{Context, Result};
@@ -16,8 +17,8 @@ use unicode_width::UnicodeWidthStr;
 /// - `⠧` for in-progress
 /// - `✗` for error
 /// - `?` for unknown/null status (should not occur in normal usage)
-fn get_status_symbol(metadata: &crate::crawl_db::RoomCrawlMetadata) -> &'static str {
-    use crate::crawl_db::CrawlStatus;
+fn get_status_symbol(metadata: &db::RoomCrawlMetadata) -> &'static str {
+    use db::CrawlStatus;
 
     match &metadata.last_crawl_status {
         Some(CrawlStatus::Virgin) => "○",
@@ -42,7 +43,7 @@ fn get_status_symbol(metadata: &crate::crawl_db::RoomCrawlMetadata) -> &'static 
 /// HashMap mapping room_id strings to display names (defaults to room_id if unavailable)
 async fn get_room_names(
     client: &Client,
-    rooms_metadata: &[crate::crawl_db::RoomCrawlMetadata],
+    rooms_metadata: &[db::RoomCrawlMetadata],
 ) -> HashMap<String, String> {
     let mut room_names = HashMap::new();
 
@@ -83,7 +84,7 @@ pub async fn list_rooms(account_id: &str) -> Result<()> {
         anyhow::bail!("Account not found: {}", account_id);
     }
 
-    let db = crate::crawl_db::CrawlDb::init(&account_dir)
+    let db = db::CrawlDb::init(&account_dir)
         .with_context(|| format!("Failed to open crawl database for {}", account_id))?;
 
     // Get all rooms sorted by status
@@ -401,7 +402,7 @@ pub async fn run(user_id_flag: Option<String>, list: bool) -> Result<()> {
         }
 
         // Display SDK coverage stats
-        match crate::crawl_db::CrawlDb::init(account_dir) {
+        match db::CrawlDb::init(account_dir) {
             Ok(db) => {
                 match db.room_count() {
                     Ok(count) => {
